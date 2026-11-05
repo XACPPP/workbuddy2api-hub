@@ -197,8 +197,10 @@ jobs:
         env:
           TAG: ${{ needs.resolve.outputs.tag }}
           EXPECTED_COMMIT: ${{ needs.resolve.outputs.commit }}
+          FORK_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
+          MAINTENANCE_FILES=$(git ls-tree -r --name-only "$FORK_SHA" -- maintenance)
           git fetch --no-tags --depth=1 \
             "https://github.com/$UPSTREAM_OWNER/$UPSTREAM_REPO.git" \
             "refs/tags/$TAG:refs/upstream/$TAG"
@@ -208,6 +210,10 @@ jobs:
             exit 1
           fi
           git checkout --detach "$COMMIT"
+          while IFS= read -r path; do
+            mkdir -p "$(dirname "$path")"
+            git show "$FORK_SHA:$path" > "$path"
+          done <<< "$MAINTENANCE_FILES"
           echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
 
       - name: Verify no unrecorded business-source changes
@@ -302,8 +308,10 @@ jobs:
           python3 - <<'PY'
           import json, os
           manifest = json.load(open("manifest.json", encoding="utf-8"))
-          platforms = {(p.get("os"), p.get("architecture"))
-                       for p in manifest.get("manifests", [])}
+          platforms = set()
+          for item in manifest.get("manifests", []):
+              platform = item.get("platform") or {}
+              platforms.add((platform.get("os"), platform.get("architecture")))
           required = {("linux", "amd64"), ("linux", "arm64")}
           if not required.issubset(platforms):
               raise SystemExit(f"{os.environ['TAG']} lacks {required}: {sorted(platforms)}")
@@ -361,8 +369,10 @@ jobs:
               | python3 -c '
           import json, sys
           m = json.load(sys.stdin)
-          platforms = {(p.get("os"), p.get("architecture"))
-                       for p in m.get("manifests", [])}
+          platforms = set()
+          for item in m.get("manifests", []):
+              platform = item.get("platform") or {}
+              platforms.add((platform.get("os"), platform.get("architecture")))
           assert {("linux", "amd64"), ("linux", "arm64")} <= platforms
           '; then
               echo "latest verified for both architectures"

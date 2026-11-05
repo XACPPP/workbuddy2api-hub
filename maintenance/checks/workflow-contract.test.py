@@ -79,6 +79,9 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertNotIn("actions/variables", self.publish)
         self.assertIn('echo "latest_published=$TAG"', self.publish)
 
+    def test_oci_platform_is_nested_under_platform(self):
+        self.assertIn('platform = item.get("platform")', self.publish)
+
 
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "--workflow-dir":
