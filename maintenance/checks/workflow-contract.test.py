@@ -72,6 +72,30 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("build and latest are untouched", self.publish)
         self.assertIn("if: steps.resolve.outputs.publish == 'true'", self.publish)
 
+    def test_every_publication_step_is_gated_by_resolution(self):
+        start = self.publish.index("id: resolve")
+        end = self.publish.index("id: build")
+        before_build = self.publish[start:end]
+        for step in (
+            "Check out upstream source at the stable tag",
+            "Apply maintained patches",
+            "Validate workflow contract",
+            "Log in to GHCR",
+            "Extract Docker metadata",
+        ):
+            block = before_build[before_build.index(step):]
+            head = block[:500]
+            self.assertRegex(
+                head,
+                r"if:\s*(?:>-\s*)?\$?\{?\{?\s*steps\.resolve\.outputs\.publish\s*==\s*'true'",
+            )
+
+    def test_release_event_cannot_build_from_fork(self):
+        self.assertIn(
+            '"$SOURCE_REPOSITORY" != "$UPSTREAM_OWNER/$UPSTREAM_REPO"',
+            self.publish,
+        )
+
     def test_manifest_check_uses_pushed_tag(self):
         self.assertIn('"$IMAGE:$TAG" --raw', self.publish)
         self.assertNotIn(
