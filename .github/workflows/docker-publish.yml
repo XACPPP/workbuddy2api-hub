@@ -40,9 +40,6 @@ jobs:
     name: Resolve stable upstream release
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: read
-      packages: read
     outputs:
       publish: ${{ steps.resolve.outputs.publish }}
       tag: ${{ steps.resolve.outputs.tag }}
@@ -177,10 +174,6 @@ jobs:
     if: needs.resolve.outputs.publish == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    permissions:
-      contents: read
-      packages: write
-      actions: write
     outputs:
       commit: ${{ steps.source.outputs.commit }}
       tag: ${{ needs.resolve.outputs.tag }}
@@ -349,10 +342,6 @@ jobs:
     if: needs.build.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: read
-      packages: write
-      actions: write
     steps:
       - name: Check and move latest
         shell: bash
@@ -401,8 +390,6 @@ jobs:
       ${{ always() && needs.resolve.outputs.publish == 'true' &&
           needs.build.result != 'success' }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - name: Keep latest untouched and record attempt
         shell: bash
