@@ -54,6 +54,10 @@ workflow definition used by GitHub Actions is taken from the repository's
 default branch; at execution time the upstream source is checked out from the
 stable tag.
 
+Release events from the fork itself are ignored. Only a published Release in
+the upstream repository is a real trigger; otherwise the hourly upstream check
+remains the source of truth.
+
 GitHub's cron scheduler can delay scheduled runs during peak load. The stated
 hourly cadence is the requested cadence, not a guarantee of exact start time.
 
@@ -150,6 +154,11 @@ the `maintenance/patches/` location, GHCR target, stable-release gate, and the
 rule that `latest` is not applied by the dual-platform build step. The
 maintained `tests.yml` runs it together with release-engineering checks. Docker
 publishing independently validates the same contract from the fork API.
+
+The GitHub-only fork has no local patch file and does not modify any `wb_*.py`
+or `dashboard.html`. If a verified local `wb_proxy.py` patch is supplied later,
+it belongs under `maintenance/patches/` and must be tested against the target
+upstream tag before merge.
 
 ## Manual setup
 
