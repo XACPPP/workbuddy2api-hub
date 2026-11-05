@@ -84,7 +84,7 @@ class WorkflowContractTest(unittest.TestCase):
             "Extract Docker metadata",
         ):
             block = before_build[before_build.index(step):]
-            head = block[:500]
+            head = "\n".join(block.splitlines()[:8])
             self.assertRegex(
                 head,
                 r"if:\s*(?:>-\s*)?\$?\{?\{?\s*steps\.resolve\.outputs\.publish\s*==\s*'true'",
