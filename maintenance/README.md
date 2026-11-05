@@ -54,9 +54,11 @@ workflow definition used by GitHub Actions is taken from the repository's
 default branch; at execution time the upstream source is checked out from the
 stable tag.
 
-Release events from the fork itself are ignored. Only a published Release in
-the upstream repository is a real trigger; otherwise the hourly upstream check
-remains the source of truth.
+Automatic reliability comes from the hourly upstream Release check. A
+`release` event is accepted only when GitHub dispatches it for the upstream
+repository; fork-local Release events are ignored. GitHub does not guarantee
+that an upstream repository's workflows are dispatched inside a fork, so no
+release event is required for correctness.
 
 GitHub's cron scheduler can delay scheduled runs during peak load. The stated
 hourly cadence is the requested cadence, not a guarantee of exact start time.
