@@ -169,6 +169,12 @@ The live canary test on 2026-11-05 added an unregistered
 [Actions 41957559930](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/41957559930)
 recorded `deleted .github/workflows/prune-canary.yml`.
 
+The canary's resulting commit (`351a126`) is intentionally retained as a
+historical audit record. The temporary workflow is not present on `main`, and
+the final maintenance run
+[Actions 41957800314](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/41957800314)
+is green.
+
 The upstream `release-checksums.yml` has been removed from this fork. It could
 not write upstream Release assets with the fork's token, and a Release event
 would check out an unrelated main branch. It provided no fork maintenance value.
