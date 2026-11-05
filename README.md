@@ -102,7 +102,7 @@ curl -fsSL https://gh-proxy.com/https://raw.githubusercontent.com/ardeyouxipiany
 ```yaml
 services:
   wb-proxy:
-    image: ghcr.io/ardeyouxipianyi/workbuddy2api-hub:latest
+    image: ghcr.io/xacppp/workbuddy2api-hub-fork:latest
     container_name: wb-proxy
     restart: unless-stopped
     ports:
@@ -116,7 +116,23 @@ services:
       - ./usage:/app/usage          # 用量流水日志（持久化）
 ```
 
-更新镜像：`docker compose pull && docker compose up -d`。
+飞牛 / Docker 主机升级：
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+需回滚时，把 `image:` 固定到已经发布的具体版本（例如
+`ghcr.io/xacppp/workbuddy2api-hub-fork:v1.10.9`），然后重建容器：
+
+```bash
+docker compose down
+docker compose up -d
+```
+
+`./accounts` 与 `./usage` 必须保持原目录，不要删除或迁移；回滚镜像
+不会改动持久化账号、配置和用量数据。恢复自动更新后再改回 `:latest`。
 
 ### 3. 启动入口：优先用 `-m`
 

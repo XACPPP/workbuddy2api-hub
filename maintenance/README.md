@@ -39,6 +39,9 @@ The repository's default-branch workflow definition is used, so this schedule
 runs even though the business source itself is checked out from the upstream
 tag inside the job.
 
+The workflow contract then verifies this repository's maintenance files at the
+fork commit SHA, not the upstream checkout's stock files.
+
 To run it manually:
 
 1. Open **Actions** in the fork.
@@ -50,6 +53,10 @@ To run it manually:
 Turn `rebuild` on only after reviewing the version, commit, and expected image.
 An automatic re-scan never rebuilds a tag that already exists with both
 required architectures.
+
+The `latest` promotion uses a GHCR digest, copies the exact multi-platform
+manifest to `latest`, then checks both architectures again. Rebuilds are
+serialized with a non-cancelling concurrency group.
 
 ## Release invariants
 
@@ -124,8 +131,46 @@ publishing refuses to build if this contract test fails.
 The fork owner needs to allow GitHub Actions to write packages through the
 repository `GITHUB_TOKEN`. The publish workflow declares `packages: write`; no
 PAT is required for the standard fork owner path. No Actions variable or
-environment secret must be created for the build.
+environment secret must be created for the build. If the GHCR package remains
+private, log the NAS in before pulling:
 
-After the first successful run, make the GHCR package public if anonymous pull
-without registry login is required. Package visibility is a one-time GitHub
-setting and is not changed by the workflow.
+```sh
+echo '<GitHub token with read:packages>' \
+  | docker login ghcr.io -u XACPPP --password-stdin
+```
+
+The first verified image at implementation time was `v1.10.9`, with source
+commit `077fb2fcfc273e29bd1266e527afc4a3d548b516`, index digest
+`sha256:2498a9be8e96dbae36747e00d83c539dc0f9d236dbe2c9d75329832cda172021`
+and both Linux architectures. The Actions run
+<https://github.com/XACPPP/workbuddy2api-hub/actions/runs/41953392823>
+completed successfully.
+
+The package is currently private unless explicitly changed in the GitHub
+package settings. A private GHCR package requires `docker login ghcr.io` on
+NAS before `docker compose pull`; make it public only if anonymous pull without
+registry login is required and the image is intended to be public.
+
+## NAS deployment and rollback
+
+Keep the existing `accounts/` and `usage/` directories in place. Watchtower
+checks the `latest` tag hourly and does not read mutable upstream branches.
+
+Upgrade:
+
+```sh
+cd /path/to/workbuddy2api-hub
+docker compose pull
+docker compose up -d
+```
+
+Rollback to a known version by replacing the image tag:
+
+```sh
+sed -i 's/:latest$/:v1.10.9/' docker-compose.yml
+docker compose down
+docker compose up -d
+```
+
+Do not delete `./accounts` or `./usage` during either operation. Change the
+tag back to `:latest` after the rollback has been diagnosed.

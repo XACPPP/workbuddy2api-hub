@@ -5,7 +5,7 @@ services:
   wb-proxy:
     # `latest` follows only a verified, published upstream stable Release.
     # Pin an exact tag such as v1.10.9 when a controlled rollback is required.
-    image: ghcr.io/xacppp/workbuddy2api-hub:latest
+    image: ghcr.io/xacppp/workbuddy2api-hub-fork:latest
     container_name: wb-proxy
     restart: unless-stopped
     user: "${PUID:-0}:${PGID:-0}"
