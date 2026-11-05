@@ -2,19 +2,30 @@
 """Static contract checks for the fork-only GHCR workflow."""
 
 from pathlib import Path
+import sys
 import unittest
-
-ROOT = Path(__file__).resolve().parents[2]
-WORKFLOWS = ROOT / ".github" / "workflows"
-PUBLISH = (WORKFLOWS / "docker-publish.yml").read_text(encoding="utf-8")
 
 
 class WorkflowContractTest(unittest.TestCase):
+    workflow_dir = None
+
+    @classmethod
+    def setUpClass(cls):
+        root = Path(__file__).resolve().parents[2]
+        workflows = root / ".github" / "workflows"
+        if workflows.is_dir():
+            cls.workflows = workflows
+        else:
+            cls.workflows = cls.workflow_dir or Path(".")
+        cls.publish = (cls.workflows / "docker-publish.yml").read_text(
+            encoding="utf-8"
+        )
+
     def test_only_active_workflows_remain(self):
         self.assertEqual(
             {
                 path.name
-                for path in WORKFLOWS.iterdir()
+                for path in self.workflows.iterdir()
                 if path.suffix in {".yml", ".yaml"}
             },
             {
@@ -26,43 +37,47 @@ class WorkflowContractTest(unittest.TestCase):
         )
 
     def test_stable_release_and_manual_post_conditions(self):
-        self.assertIn("schedule:", PUBLISH)
-        self.assertIn("workflow_dispatch:", PUBLISH)
-        self.assertIn("release:", PUBLISH)
-        self.assertIn("draft == false", PUBLISH)
-        self.assertIn("prerelease == false", PUBLISH)
-        self.assertIn("published_at != null", PUBLISH)
-        self.assertIn(".tag_name | test(", PUBLISH)
+        self.assertIn("schedule:", self.publish)
+        self.assertIn("workflow_dispatch:", self.publish)
+        self.assertIn("release:", self.publish)
+        self.assertIn("draft == false", self.publish)
+        self.assertIn("prerelease == false", self.publish)
+        self.assertIn("published_at != null", self.publish)
+        self.assertIn(".tag_name | test(", self.publish)
 
     def test_image_and_platforms(self):
-        self.assertIn("IMAGE: ghcr.io/xacppp/workbuddy2api-hub", PUBLISH)
-        self.assertIn("platforms: linux/amd64,linux/arm64", PUBLISH)
+        self.assertIn("IMAGE: ghcr.io/xacppp/workbuddy2api-hub", self.publish)
+        self.assertIn("platforms: linux/amd64,linux/arm64", self.publish)
 
     def test_latest_is_later_and_verified(self):
-        build_start = PUBLISH.index("  build:")
-        promote_start = PUBLISH.index("  promote:")
-        build_block = PUBLISH[build_start:promote_start]
+        build_start = self.publish.index("  build:")
+        promote_start = self.publish.index("  promote:")
+        build_block = self.publish[build_start:promote_start]
         versions_block = build_block[build_block.index("docker/metadata-action"):]
         self.assertNotIn("value=latest", versions_block)
-        self.assertIn("needs: [resolve, build]", PUBLISH[promote_start:])
-        self.assertIn("imagetools create", PUBLISH[promote_start:])
+        self.assertIn("needs: [resolve, build]", self.publish[promote_start:])
+        self.assertIn("imagetools create", self.publish[promote_start:])
 
     def test_concurrency_and_cache(self):
         self.assertIn(
             "group: workbuddy-ghcr-publish\n  cancel-in-progress: false",
-            PUBLISH,
+            self.publish,
         )
-        self.assertIn("cache-from: type=gha", PUBLISH)
-        self.assertIn("cache-to: type=gha", PUBLISH)
+        self.assertIn("cache-from: type=gha", self.publish)
+        self.assertIn("cache-to: type=gha", self.publish)
 
     def test_patch_entry_point(self):
-        self.assertTrue((ROOT / "maintenance" / "patches").is_dir())
-        self.assertIn("maintenance/patches/*.patch", PUBLISH)
+        self.assertIn("maintenance/patches/*.patch", self.publish)
 
     def test_manifest_check_uses_build_digest(self):
-        self.assertIn('"$IMAGE@$DIGEST" --raw', PUBLISH)
-        self.assertNotIn("pkgs/container/workbuddy2api-hub/manifests/$DIGEST", PUBLISH)
+        self.assertIn('"$IMAGE@$DIGEST" --raw', self.publish)
+        self.assertNotIn(
+            "pkgs/container/workbuddy2api-hub/manifests/$DIGEST", self.publish
+        )
 
 
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--workflow-dir":
+        WorkflowContractTest.workflow_dir = Path(sys.argv.pop(2))
+        sys.argv.pop(1)
     unittest.main()
