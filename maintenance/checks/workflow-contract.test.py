@@ -75,6 +75,10 @@ class WorkflowContractTest(unittest.TestCase):
             "pkgs/container/workbuddy2api-hub/manifests/$DIGEST", self.publish
         )
 
+    def test_audit_recording_is_not_a_release_gate(self):
+        self.assertNotIn("actions/variables", self.publish)
+        self.assertIn('echo "latest_published=$TAG"', self.publish)
+
 
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "--workflow-dir":

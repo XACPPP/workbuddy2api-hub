@@ -322,20 +322,12 @@ jobs:
           COMMIT: ${{ needs.resolve.outputs.commit }}
           DIGEST: ${{ steps.build.outputs.digest }}
           RELEASE_URL: ${{ needs.resolve.outputs.release_url }}
-          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          for pair in \
-            "workbuddy-last-upstream-release:$TAG" \
-            "workbuddy-last-upstream-commit:$COMMIT" \
-            "workbuddy-last-image-digest:$DIGEST" \
-            "workbuddy-last-release-url:$RELEASE_URL"; do
-            NAME="${pair%%:*}"
-            VALUE="${pair#*:}"
-            gh api --method PUT \
-              "repos/$REPOSITORY/actions/variables/$NAME" \
-              -f name="$NAME" -f value="$VALUE" >/dev/null
-          done
+          echo "release=$TAG"
+          echo "commit=$COMMIT"
+          echo "digest=$DIGEST"
+          echo "release_url=$RELEASE_URL"
           {
             echo "### Verified build"
             echo
@@ -363,7 +355,6 @@ jobs:
           TAG: ${{ needs.build.outputs.tag }}
           DIGEST: ${{ needs.build.outputs.digest }}
           COMMIT: ${{ needs.build.outputs.commit }}
-          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           docker buildx imagetools create \
@@ -386,9 +377,7 @@ jobs:
             fi
             sleep 5
           done
-          gh api --method PUT \
-            "repos/$REPOSITORY/actions/variables/workbuddy-last-published-version" \
-            -f name=workbuddy-last-published-version -f value="$TAG" >/dev/null
+          echo "latest_published=$TAG"
           {
             echo "### Published"
             echo
@@ -407,22 +396,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      actions: write
     steps:
       - name: Keep latest untouched and record attempt
         shell: bash
         env:
           TAG: ${{ needs.resolve.outputs.tag }}
           COMMIT: ${{ needs.resolve.outputs.commit }}
-          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          gh api --method POST "repos/$REPOSITORY/actions/variables" \
-            -f name=workbuddy-last-failed-attempt \
-            -f value="$TAG@$COMMIT" >/dev/null 2>&1 || \
-          gh api --method PATCH \
-            "repos/$REPOSITORY/actions/variables/workbuddy-last-failed-attempt" \
-            -f name=workbuddy-last-failed-attempt \
-            -f value="$TAG@$COMMIT" >/dev/null
+          echo "failed_attempt=$TAG@$COMMIT"
           echo "::error::Build failed for $TAG; old latest was not changed."
           exit 1

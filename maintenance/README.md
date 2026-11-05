@@ -63,18 +63,21 @@ required architectures.
 - Tags and commits are resolved from GitHub API identity, not guessed from
   branch names.
 - Build logs, source tag, source SHA, release URL, and image digest are held in
-  the build record. Repository Actions variables record the last verified and
-  last promoted version.
+  the Actions run summary and manifest labels. Audit bookkeeping never gates
+  publication, so a GitHub token's inability to write repository variables
+  cannot change image availability.
 - Old version images are not deleted.
 - A GHA cache lowers repeated build time. Cache data is never used as proof
   that an image is publishable.
 
 ## Fork-specific source changes
 
-At initialization there was no local `wb_proxy.py` or local compose file in
-this workspace, so no source patch was carried into the fork. That absence is
-not treated as permission to discard an unknown deployment patch. The build
-will stay identical to upstream until a real diff is supplied and reviewed.
+At initialization the supplied workspace contained only the upstream checkout
+and no separate deployment copy or authenticated NAS filesystem to inspect. A
+synthetic source diff would therefore be misleading. The build stays
+byte-identical to upstream, and the workflow fails closed if an unrecorded
+business-source edit appears. If the real NAS deployment contains a patched
+`wb_proxy.py`, diff it against the exact source tag before adding a patch here.
 
 To add a verified patch:
 
@@ -120,12 +123,8 @@ publishing refuses to build if this contract test fails.
 
 The fork owner needs to allow GitHub Actions to write packages through the
 repository `GITHUB_TOKEN`. The publish workflow declares `packages: write`; no
-PAT is required for the standard fork owner path.
-
-If GitHub reports that Actions cannot create repository variables, grant the
-workflow `actions: write` in repository settings or change the bookkeeping
-step to a non-blocking logger. Do not replace `GITHUB_TOKEN` with a broadly
-scoped PAT just to work around an Actions setting.
+PAT is required for the standard fork owner path. No Actions variable or
+environment secret must be created for the build.
 
 After the first successful run, make the GHCR package public if anonymous pull
 without registry login is required. Package visibility is a one-time GitHub
