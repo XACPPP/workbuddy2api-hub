@@ -59,6 +59,10 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertTrue((ROOT / "maintenance" / "patches").is_dir())
         self.assertIn("maintenance/patches/*.patch", PUBLISH)
 
+    def test_manifest_check_uses_build_digest(self):
+        self.assertIn('"$IMAGE@$DIGEST" --raw', PUBLISH)
+        self.assertNotIn("pkgs/container/workbuddy2api-hub/manifests/$DIGEST", PUBLISH)
+
 
 if __name__ == "__main__":
     unittest.main()

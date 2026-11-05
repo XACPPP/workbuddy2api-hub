@@ -191,6 +191,13 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Preserve fork maintenance files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/workbuddy-maintenance"
+          cp -a maintenance/. "$RUNNER_TEMP/workbuddy-maintenance/"
+
       - name: Check out upstream source at the stable tag
         id: source
         shell: bash
@@ -208,6 +215,8 @@ jobs:
             exit 1
           fi
           git checkout --detach "$COMMIT"
+          mkdir -p maintenance
+          cp -a "$RUNNER_TEMP/workbuddy-maintenance/." maintenance/
           echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
 
       - name: Verify no unrecorded business-source changes
