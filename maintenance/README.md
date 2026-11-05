@@ -17,6 +17,20 @@ Release. Fork maintenance files are composed onto that tree explicitly.
 The upstream default branch is `main`. Upstream provides Releases and tags;
 the fork does not mirror a moving branch into its own source tree.
 
+## Verified publish baseline
+
+| Field | Observed value |
+| --- | --- |
+| Upstream Release | `v1.10.9` |
+| Upstream source commit | `077fb2fcfc273e29bd1266e527afc4a3d548b516` |
+| Version and `latest` manifest | `sha256:a896cee3cc5112a86b586f2d15d6a90cfca4a718fb78922eeddc7a13900accb5` |
+| Platforms | `linux/amd64`, `linux/arm64` |
+| Successful forced-build run | [Actions 41954943720](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/41954943720) |
+
+The manifest was queried from GHCR directly after the run. Both tags resolve
+to the same multi-platform digest above. On 2026-11-05, upstream `v1.10.10`
+was still a tag without a published Release, so it was intentionally not used.
+
 ## Stable version rule
 
 The automatic trigger accepts only a Release where all of these are true:
@@ -39,6 +53,9 @@ The repository's default-branch workflow definition is used, so this schedule
 runs even though the business source itself is checked out from the upstream
 tag inside the job.
 
+GitHub's cron scheduler can delay scheduled runs during peak load. The stated
+hourly cadence is the requested cadence, not a guarantee of exact start time.
+
 The workflow contract then verifies this repository's maintenance files at the
 fork commit SHA, not the upstream checkout's stock files.
 
@@ -54,16 +71,18 @@ Turn `rebuild` on only after reviewing the version, commit, and expected image.
 An automatic re-scan never rebuilds a tag that already exists with both
 required architectures.
 
-The `latest` promotion uses a GHCR digest, copies the exact multi-platform
-manifest to `latest`, then checks both architectures again. Rebuilds are
-serialized with a non-cancelling concurrency group.
+The publish and promotion steps use one guarded job. This avoids GitHub's
+cross-job credential boundary; an unchanged version exits during resolution
+before Buildx starts. Rebuilds are serialized with a non-cancelling concurrency
+group.
 
 ## Release invariants
 
 - The version tag is pushed only after both `linux/amd64` and `linux/arm64`
   builds succeed.
-- `latest` is updated only in a later job that checks the version manifest
-  again. Any failed or partial build leaves the old `latest` untouched.
+- The pushed version manifest is checked after the multi-platform build.
+  Only then is `latest` moved and checked again. Any failed or partial build
+  leaves the old `latest` untouched.
 - A workflow-wide concurrency group does not cancel a running release. A
   waiting run enters one at a time and re-checks whether the tag already
   exists.
@@ -79,12 +98,11 @@ serialized with a non-cancelling concurrency group.
 
 ## Fork-specific source changes
 
-At initialization the supplied workspace contained only the upstream checkout
-and no separate deployment copy or authenticated NAS filesystem to inspect. A
-synthetic source diff would therefore be misleading. The build stays
-byte-identical to upstream, and the workflow fails closed if an unrecorded
-business-source edit appears. If the real NAS deployment contains a patched
-`wb_proxy.py`, diff it against the exact source tag before adding a patch here.
+The GitHub-only implementation did not receive a deployment copy of
+`wb_proxy.py`. It therefore makes no claim that an unseen local patch can be
+discarded. The image stays byte-identical to upstream, and the workflow fails
+closed if an unrecorded business-source edit appears. If a maintained patch is
+required, diff it against the exact source tag before adding it here.
 
 To add a verified patch:
 
@@ -131,46 +149,14 @@ publishing refuses to build if this contract test fails.
 The fork owner needs to allow GitHub Actions to write packages through the
 repository `GITHUB_TOKEN`. The publish workflow declares `packages: write`; no
 PAT is required for the standard fork owner path. No Actions variable or
-environment secret must be created for the build. If the GHCR package remains
-private, log the NAS in before pulling:
+environment secret must be created for the build. If package visibility is
+changed to private, a GitHub token with `read:packages` is needed for pulls:
 
 ```sh
 echo '<GitHub token with read:packages>' \
   | docker login ghcr.io -u XACPPP --password-stdin
 ```
 
-The first verified image at implementation time was `v1.10.9`, with source
-commit `077fb2fcfc273e29bd1266e527afc4a3d548b516`, index digest
-`sha256:2498a9be8e96dbae36747e00d83c539dc0f9d236dbe2c9d75329832cda172021`
-and both Linux architectures. The Actions run
-<https://github.com/XACPPP/workbuddy2api-hub/actions/runs/41953392823>
-completed successfully.
-
-The package is currently private unless explicitly changed in the GitHub
-package settings. A private GHCR package requires `docker login ghcr.io` on
-NAS before `docker compose pull`; make it public only if anonymous pull without
-registry login is required and the image is intended to be public.
-
-## NAS deployment and rollback
-
-Keep the existing `accounts/` and `usage/` directories in place. Watchtower
-checks the `latest` tag hourly and does not read mutable upstream branches.
-
-Upgrade:
-
-```sh
-cd /path/to/workbuddy2api-hub
-docker compose pull
-docker compose up -d
-```
-
-Rollback to a known version by replacing the image tag:
-
-```sh
-sed -i 's/:latest$/:v1.10.9/' docker-compose.yml
-docker compose down
-docker compose up -d
-```
-
-Do not delete `./accounts` or `./usage` during either operation. Change the
-tag back to `:latest` after the rollback has been diagnosed.
+If anonymous pulls without a GHCR login are required, the package owner can
+make it public once in GitHub package settings. That visibility choice is not
+changed by the workflow.
