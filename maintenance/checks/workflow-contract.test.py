@@ -144,7 +144,9 @@ class WorkflowContractTest(unittest.TestCase):
         )
         self.assertIn('cron: "23 */6 * * *"', cleanup)
         self.assertIn("contents: write", cleanup)
+        self.assertIn("actions: write", cleanup)
         self.assertIn("cleanup-workflows.py", cleanup)
+        self.assertIn("cleanup-runs.py", cleanup)
         policy = self.root / ".github" / "workflow-policy.json"
         self.assertTrue(policy.is_file())
 
