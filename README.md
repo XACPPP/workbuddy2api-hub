@@ -8,7 +8,7 @@
 > for the upstream-version rule, manual rebuild controls, patch boundary, and
 > release verification.
 >
-> Image: `ghcr.io/xacppp/workbuddy2api-hub:latest`.
+> Image: `ghcr.io/xacppp/workbuddy2api-hub-fork:latest`.
 
 > [!IMPORTANT]
 > **项目进入低频维护（2026-10-23） / Low-frequency maintenance**

@@ -46,7 +46,7 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn(".tag_name | test(", self.publish)
 
     def test_image_and_platforms(self):
-        self.assertIn("IMAGE: ghcr.io/xacppp/workbuddy2api-hub", self.publish)
+        self.assertIn("IMAGE: ghcr.io/xacppp/workbuddy2api-hub-fork", self.publish)
         self.assertIn("platforms: linux/amd64,linux/arm64", self.publish)
 
     def test_latest_is_later_and_verified(self):
@@ -72,7 +72,7 @@ class WorkflowContractTest(unittest.TestCase):
     def test_manifest_check_uses_build_digest(self):
         self.assertIn('"$IMAGE:$TAG" --raw', self.publish)
         self.assertNotIn(
-            "pkgs/container/workbuddy2api-hub/manifests/$DIGEST", self.publish
+            "pkgs/container/workbuddy2api-hub-fork/manifests/$DIGEST", self.publish
         )
 
     def test_audit_recording_is_not_a_release_gate(self):

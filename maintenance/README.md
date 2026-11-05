@@ -12,7 +12,7 @@ Release. Fork maintenance files are composed onto that tree explicitly.
 | Origin | `https://github.com/XACPPP/workbuddy2api-hub` |
 | Release trigger | `.github/workflows/docker-publish.yml` |
 | Patch/workflow checks | `maintenance/checks/`, `maintenance/patches/` |
-| Image | `ghcr.io/xacppp/workbuddy2api-hub` |
+| Image | `ghcr.io/xacppp/workbuddy2api-hub-fork` |
 
 The upstream default branch is `main`. Upstream provides Releases and tags;
 the fork does not mirror a moving branch into its own source tree.

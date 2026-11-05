@@ -30,7 +30,7 @@ concurrency:
 env:
   UPSTREAM_OWNER: ardeyouxipianyi
   UPSTREAM_REPO: workbuddy2api-hub
-  IMAGE: ghcr.io/xacppp/workbuddy2api-hub
+  IMAGE: ghcr.io/xacppp/workbuddy2api-hub-fork
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   SOURCE_TAG: ${{ inputs.tag || '' }}
   REBUILD: ${{ inputs.rebuild || false }}
@@ -53,7 +53,7 @@ jobs:
           FORK_REPOSITORY: xacppp/workbuddy2api-hub
         run: |
           set -euo pipefail
-          PACKAGE_URL="https://api.github.com/repos/$FORK_REPOSITORY/pkgs/container/workbuddy2api-hub"
+          PACKAGE_URL="https://api.github.com/repos/$FORK_REPOSITORY/pkgs/container/workbuddy2api-hub-fork"
 
           write_output() {
             printf '%s=%s\n' "$1" "$2" >> "$GITHUB_OUTPUT"
@@ -139,7 +139,7 @@ jobs:
             fi
             if [[ "$EXISTING_TAG_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
               PLATFORMS=$(gh api \
-                "/repos/$FORK_REPOSITORY/pkgs/container/workbuddy2api-hub/manifests/$EXISTING_TAG_DIGEST" \
+                "/repos/$FORK_REPOSITORY/pkgs/container/workbuddy2api-hub-fork/manifests/$EXISTING_TAG_DIGEST" \
                 --jq '[.platforms[]? | "\(.os)/\(.architecture)"] | join(",")' \
                 2>/dev/null || true)
               if [[ ",$PLATFORMS," == *",linux/amd64,"* && \
