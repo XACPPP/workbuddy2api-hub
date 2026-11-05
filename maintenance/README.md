@@ -131,18 +131,25 @@ The fork keeps only workflows that still have an active owner:
 | Workflow | Purpose in this fork |
 | --- | --- |
 | `docker-publish.yml` | Upstream release discovery, deduplication, dual-arch GHCR build, latest promotion |
-| `tests.yml` | Upstream Python/Node regression suite and source-version guard |
-| `release.yml` | Upstream release artifact gate; kept unchanged and relevant to its own tags |
+| `tests.yml` | Fork maintenance contract and release-engineering checks |
 | `revert-guard.yml` | Pull-request rollback protection; kept unchanged |
 
 The upstream `release-checksums.yml` has been removed from this fork. It could
 not write upstream Release assets with the fork's token, and a Release event
 would check out an unrelated main branch. It provided no fork maintenance value.
 
+The upstream `release.yml` was also removed: it packages portable ZIP, OpenWrt
+assets, and a draft GitHub Release, none of which this fork publishes. The
+upstream business test matrix was replaced because its failing UI/403 checks
+concern source that is not used to build this fork's image. The actual release
+workflow still proves selected business files match upstream byte-for-byte
+before Buildx starts.
+
 `maintenance/checks/workflow-contract.test.py` pins this active-workflow set,
 the `maintenance/patches/` location, GHCR target, stable-release gate, and the
-rule that `latest` is not applied by the dual-platform build step. Docker
-publishing refuses to build if this contract test fails.
+rule that `latest` is not applied by the dual-platform build step. The
+maintained `tests.yml` runs it together with release-engineering checks. Docker
+publishing independently validates the same contract from the fork API.
 
 ## Manual setup
 

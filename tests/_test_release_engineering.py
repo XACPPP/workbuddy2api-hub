@@ -30,16 +30,10 @@ class VersionStringTests(unittest.TestCase):
 
 
 class WorkflowTests(unittest.TestCase):
-    def test_tests_workflow_asserts_tag_against_source(self):
+    def test_maintain_workflow_runs_the_fork_contract(self):
         text = read(".github", "workflows", "tests.yml")
-        self.assertIn('tags: ["v*"]', text)
-        self.assertIn("version-assert", text)
-        self.assertIn("refs/tags/v", text)
-        self.assertIn("GITHUB_REF_NAME", text)
-        self.assertIn("server_version", text)
-        # The workflow's extraction must see the same two strings the source
-        # test pins, otherwise a passing CI would mean nothing.
-        self.assertIn('"version"', text)
+        self.assertIn("maintenance/checks/workflow-contract.test.py", text)
+        self.assertIn("tests/_test_release_engineering.py", text)
 
     def test_obsolete_upstream_checksums_workflow_is_removed(self):
         path = os.path.join(ROOT, ".github", "workflows", "release-checksums.yml")

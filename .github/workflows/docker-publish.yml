@@ -230,7 +230,7 @@ jobs:
           CONTRACT_REF: ${{ github.sha }}
         run: |
           set -euo pipefail
-          for path in docker-publish.yml tests.yml release.yml revert-guard.yml; do
+          for path in docker-publish.yml tests.yml revert-guard.yml; do
             gh api -H 'Accept: application/vnd.github.raw+json' \
               "repos/$CONTRACT_REPOSITORY/contents/.github/workflows/$path?ref=$CONTRACT_REF" \
               > "$RUNNER_TEMP/$path"

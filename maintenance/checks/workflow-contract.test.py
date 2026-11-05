@@ -31,10 +31,13 @@ class WorkflowContractTest(unittest.TestCase):
             },
             {
                 "docker-publish.yml",
-                "release.yml",
                 "revert-guard.yml",
                 "tests.yml",
             },
+        )
+        self.assertFalse(
+            (self.workflows / "release.yml").exists(),
+            "upstream release packaging has no role in this fork",
         )
 
     def test_stable_release_and_manual_post_conditions(self):
