@@ -12,6 +12,7 @@ class WorkflowContractTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         root = Path(__file__).resolve().parents[2]
+        cls.root = root
         workflows = root / ".github" / "workflows"
         if workflows.is_dir():
             cls.workflows = workflows
@@ -82,14 +83,19 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn('echo "latest_published=$TAG"', self.publish)
 
     def test_oci_platform_is_nested_under_platform(self):
-        self.assertIn('p["platform"]["os"]', self.publish)
-        self.assertIn('p["platform"]["architecture"]', self.publish)
+        manifest = self.root / "maintenance" / "checks" / "manifest-platforms.py"
+        helper = manifest.read_text(encoding="utf-8")
+        self.assertIn('item.get("platform")', helper)
+        self.assertIn('item.get("os")', helper)
 
     def test_existing_tag_uses_registry_manifest(self):
         resolve_start = self.publish.index("name: Resolve stable upstream Release")
         resolve_end = self.publish.index("name: Stop when this version")
         self.assertIn('inspect "$IMAGE:$TAG" --raw', self.publish[resolve_start:resolve_end])
-        self.assertIn('m.get("manifests"', self.publish[resolve_start:resolve_end])
+        self.assertIn(
+            "maintenance/checks/manifest-platforms.py",
+            self.publish[resolve_start:resolve_end],
+        )
 
 
 if __name__ == "__main__":

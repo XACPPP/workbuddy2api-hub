@@ -11,15 +11,13 @@ def main():
     platforms = []
     for item in manifest.get("manifests", []):
         platform = item.get("platform") or {}
-        if (
-            not platform
-            or platform.get("os") == "unknown"
-            or platform.get("architecture") == "unknown"
-        ):
+        os_name = platform.get("os") or item.get("os")
+        architecture = platform.get("architecture") or item.get("architecture")
+        if not os_name or not architecture:
             continue
-        platforms.append(
-            f"{platform.get('os', '')}/{platform.get('architecture', '')}"
-        )
+        if os_name == "unknown" or architecture == "unknown":
+            continue
+        platforms.append(f"{os_name}/{architecture}")
     print(",".join(platforms))
 
 

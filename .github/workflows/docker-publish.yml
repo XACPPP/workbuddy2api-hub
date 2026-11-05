@@ -131,16 +131,7 @@ jobs:
             printf '%s' "$GH_TOKEN" \
               | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
             if docker buildx imagetools inspect "$IMAGE:$TAG" --raw > existing.json 2>/dev/null; then
-              PLATFORMS=$(python3 - existing.json <<'PY'
-          import json, sys
-          m = json.load(open(sys.argv[1], encoding="utf-8"))
-          print(",".join(sorted(
-              f"{p['platform']['os']}/{p['platform']['architecture']}"
-              for p in m.get("manifests", [])
-              if p.get("platform", {}).get("os") not in (None, "unknown")
-          )))
-          PY
-          )
+              PLATFORMS=$(python3 maintenance/checks/manifest-platforms.py existing.json)
               if [[ ",$PLATFORMS," == *",linux/amd64,"* && \
                     ",$PLATFORMS," == *",linux/arm64,"* ]]; then
                 EXISTING="true"
@@ -306,18 +297,12 @@ jobs:
           printf '%s' "$GH_TOKEN" \
             | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           docker buildx imagetools inspect "$IMAGE:$TAG" --raw > manifest.json
-          python3 - <<'PY'
-          import json, os
-          m = json.load(open("manifest.json", encoding="utf-8"))
-          platforms = {
-              (p["platform"]["os"], p["platform"]["architecture"])
-              for p in m.get("manifests", []) if p.get("platform")
+          PLATFORMS=$(python3 maintenance/checks/manifest-platforms.py manifest.json)
+          [[ ",$PLATFORMS," == *",linux/amd64,"* && \
+             ",$PLATFORMS," == *",linux/arm64,"* ]] || {
+            echo "::error::$TAG lacks linux/amd64 or linux/arm64: $PLATFORMS"; exit 1;
           }
-          required = {("linux", "amd64"), ("linux", "arm64")}
-          if not required.issubset(platforms):
-              raise SystemExit(f"{os.environ['TAG']} lacks {required}: {sorted(platforms)}")
-          print(f"{os.environ['TAG']} verified: {sorted(platforms)}")
-          PY
+          echo "$TAG verified: $PLATFORMS"
           docker buildx imagetools inspect "$IMAGE:$TAG"
 
       - name: Promote verified version to latest
@@ -333,18 +318,12 @@ jobs:
           docker buildx imagetools create \
             --tag "$IMAGE:latest" "$IMAGE:$TAG"
           docker buildx imagetools inspect "$IMAGE:latest" --raw > latest.json
-          python3 - <<'PY'
-          import json
-          m = json.load(open("latest.json", encoding="utf-8"))
-          platforms = {
-              (p["platform"]["os"], p["platform"]["architecture"])
-              for p in m.get("manifests", []) if p.get("platform")
+          PLATFORMS=$(python3 maintenance/checks/manifest-platforms.py latest.json)
+          [[ ",$PLATFORMS," == *",linux/amd64,"* && \
+             ",$PLATFORMS," == *",linux/arm64,"* ]] || {
+            echo "::error::latest lacks linux/amd64 or linux/arm64: $PLATFORMS"; exit 1;
           }
-          required = {("linux", "amd64"), ("linux", "arm64")}
-          if not required.issubset(platforms):
-              raise SystemExit(f"latest lacks {required}: {sorted(platforms)}")
-          print(f"latest verified: {sorted(platforms)}")
-          PY
+          echo "latest verified: $PLATFORMS"
           echo "latest_published=$TAG"
           echo "release=$TAG"
           echo "commit=$COMMIT"
