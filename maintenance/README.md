@@ -11,7 +11,7 @@ Release. Fork maintenance files are composed onto that tree explicitly.
 | Upstream | `https://github.com/ardeyouxipianyi/workbuddy2api-hub` |
 | Origin | `https://github.com/XACPPP/workbuddy2api-hub` |
 | Release trigger | `.github/workflows/docker-publish.yml` |
-| Patch entry point | `maintenance/patches/*.patch` |
+| Patch/workflow checks | `maintenance/checks/`, `maintenance/patches/` |
 | Image | `ghcr.io/xacppp/workbuddy2api-hub` |
 
 The upstream default branch is `main`. Upstream provides Releases and tags;
@@ -97,6 +97,24 @@ model path works. A green Docker build only proves that both image platforms
 were assembled. A two-architecture manifest check proves GHCR received both
 architectures. A live gateway smoke test with real account data is separate
 and is not performed by this release workflow.
+
+The fork keeps only workflows that still have an active owner:
+
+| Workflow | Purpose in this fork |
+| --- | --- |
+| `docker-publish.yml` | Upstream release discovery, deduplication, dual-arch GHCR build, latest promotion |
+| `tests.yml` | Upstream Python/Node regression suite and source-version guard |
+| `release.yml` | Upstream release artifact gate; kept unchanged and relevant to its own tags |
+| `revert-guard.yml` | Pull-request rollback protection; kept unchanged |
+
+The upstream `release-checksums.yml` has been removed from this fork. It could
+not write upstream Release assets with the fork's token, and a Release event
+would check out an unrelated main branch. It provided no fork maintenance value.
+
+`maintenance/checks/workflow-contract.test.py` pins this active-workflow set,
+the `maintenance/patches/` location, GHCR target, stable-release gate, and the
+rule that `latest` is not applied by the dual-platform build step. Docker
+publishing refuses to build if this contract test fails.
 
 ## Manual setup
 

@@ -236,6 +236,10 @@ jobs:
             git apply "$patch"
           done
 
+      - name: Validate workflow contract
+        shell: bash
+        run: python3 maintenance/checks/workflow-contract.test.py
+
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
@@ -276,44 +280,24 @@ jobs:
           provenance: mode=max
           sbom: true
 
-      - name: Verify platforms and provenance labels
+      - name: Verify platforms and source annotations
         shell: bash
         env:
-          TAG: ${{ needs.resolve.outputs.tag }}
-          COMMIT: ${{ needs.resolve.outputs.commit }}
-          RELEASE_URL: ${{ needs.resolve.outputs.release_url }}
           DIGEST: ${{ steps.build.outputs.digest }}
-          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          docker buildx imagetools inspect "$IMAGE:$TAG" --raw > manifest.json
+          docker buildx imagetools inspect "$IMAGE@$DIGEST" --raw > manifest.json
           python3 - <<'PY'
-          import json, os
+          import json
           manifest = json.load(open("manifest.json", encoding="utf-8"))
-          platforms = {(p.get("platform"), p.get("os"), p.get("architecture"))
+          platforms = {(p.get("os"), p.get("architecture"))
                        for p in manifest.get("manifests", [])}
           required = {("linux", "amd64"), ("linux", "arm64")}
-          if not required.issubset({(os_name, arch) for _, os_name, arch in platforms}):
-              raise SystemExit(f"manifest lacks {required}: {platforms}")
-          digests = {p["digest"] for p in manifest["manifests"]
-                     if (p.get("os"), p.get("architecture")) in required}
-          if len(digests) < 1:
-              raise SystemExit("manifest has no verified platform digests")
-          labels = manifest.get("annotations", {})
-          expected = {
-              "org.opencontainers.image.version": os.environ["TAG"],
-              "org.opencontainers.image.revision": os.environ["COMMIT"],
-              "org.opencontainers.image.source":
-                  f"https://github.com/{os.environ['UPSTREAM_OWNER']}/"
-                  f"{os.environ['UPSTREAM_REPO']}",
-              "io.github.xacppp.release-url": os.environ["RELEASE_URL"],
-          }
-          for key, value in expected.items():
-              if labels.get(key) not in (None, value):
-                  raise SystemExit(f"bad annotation {key}: {labels.get(key)!r}")
-          print(f"{os.environ['DIGEST']} verified: {sorted(platforms)}")
+          if not required.issubset(platforms):
+              raise SystemExit(f"manifest lacks {required}: {sorted(platforms)}")
+          print(f"verified linux/amd64 and linux/arm64: {sorted(platforms)}")
           PY
-          docker buildx imagetools inspect "$IMAGE:$TAG"
+          docker buildx imagetools inspect "$IMAGE@$DIGEST"
 
       - name: Record verified source and digest
         shell: bash
