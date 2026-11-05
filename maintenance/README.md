@@ -23,13 +23,14 @@ the fork does not mirror a moving branch into its own source tree.
 | --- | --- |
 | Upstream Release | `v1.10.9` |
 | Upstream source commit | `077fb2fcfc273e29bd1266e527afc4a3d548b516` |
-| Version and `latest` manifest | `sha256:a896cee3cc5112a86b586f2d15d6a90cfca4a718fb78922eeddc7a13900accb5` |
+| Version and `latest` manifest | See the successful run's `digest=` line |
 | Platforms | `linux/amd64`, `linux/arm64` |
 | Successful forced-build run | [Actions 41954943720](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/41954943720) |
 
 The manifest was queried from GHCR directly after the run. Both tags resolve
-to the same multi-platform digest above. On 2026-11-05, upstream `v1.10.10`
-was still a tag without a published Release, so it was intentionally not used.
+to the same multi-platform digest printed in that run's log and step summary.
+On 2026-11-05, upstream `v1.10.10` was still a tag without a published Release,
+so it was intentionally not used.
 
 ## Stable version rule
 
@@ -89,9 +90,8 @@ group.
 - Tags and commits are resolved from GitHub API identity, not guessed from
   branch names.
 - Build logs, source tag, source SHA, release URL, and image digest are held in
-  the Actions run summary and manifest labels. Audit bookkeeping never gates
-  publication, so a GitHub token's inability to write repository variables
-  cannot change image availability.
+  the Actions run summary and manifest labels. Historical releases stay
+  discoverable through their run records and immutable version tags.
 - Old version images are not deleted.
 - A GHA cache lowers repeated build time. Cache data is never used as proof
   that an image is publishable.
