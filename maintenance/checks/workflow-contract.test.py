@@ -58,6 +58,10 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("needs: [resolve, build]", self.publish[promote_start:])
         self.assertIn("imagetools create", self.publish[promote_start:])
 
+    def test_latest_requires_this_run_to_build(self):
+        promote_start = self.publish.index("  promote:")
+        self.assertIn("needs.build.outputs.built == 'true'", self.publish[promote_start:])
+
     def test_concurrency_and_cache(self):
         self.assertIn(
             "group: workbuddy-ghcr-publish\n  cancel-in-progress: false",
@@ -68,6 +72,14 @@ class WorkflowContractTest(unittest.TestCase):
 
     def test_patch_entry_point(self):
         self.assertIn("maintenance/patches/*.patch", self.publish)
+
+    def test_same_version_does_not_launch_build_or_promote(self):
+        start = self.publish.index("  resolve:")
+        end = self.publish.index("  build:")
+        resolve = self.publish[start:end]
+        self.assertIn("no build or latest mutation", resolve)
+        self.assertIn("needs.resolve.outputs.publish == 'true'", self.publish)
+        self.assertIn("needs.build.outputs.built == 'true'", self.publish)
 
     def test_manifest_check_uses_build_digest(self):
         self.assertIn('"$IMAGE:$TAG" --raw', self.publish)

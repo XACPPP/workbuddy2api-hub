@@ -149,17 +149,26 @@ jobs:
                   echo "::notice::Ignoring a Release event from a non-upstream repository."
                   no_publish
                 fi
-                echo "::notice::$TAG already has both architectures; no rebuild."
-                no_publish
+                echo "$TAG already has both architectures; no rebuild."
+              else
+                echo "::error::$TAG exists without both required architectures."
+                exit 1
               fi
-              echo "::error::$TAG exists without both required architectures."
-              exit 1
             fi
           fi
 
           if [[ "${{ github.event_name }}" == "release" && \
                 "$SOURCE_REPOSITORY" != "$UPSTREAM_OWNER/$UPSTREAM_REPO" ]]; then
             echo "::notice::Release is not on the upstream repository; no image."
+            no_publish
+          fi
+
+          if [[ "$REBUILD" != "true" && -n "$EXISTING_TAG_DIGEST" ]]; then
+            {
+              echo "### Already published"
+              echo
+              echo "\`$TAG\` already contains both architectures; no build or latest mutation."
+            } >> "$GITHUB_STEP_SUMMARY"
             no_publish
           fi
 
@@ -178,6 +187,7 @@ jobs:
       commit: ${{ steps.source.outputs.commit }}
       tag: ${{ needs.resolve.outputs.tag }}
       digest: ${{ steps.build.outputs.digest }}
+      built: ${{ steps.marker.outputs.built }}
     steps:
       - name: Check out maintenance files
         uses: actions/checkout@v4
@@ -318,6 +328,7 @@ jobs:
           docker logout ghcr.io
 
       - name: Record verified source and digest
+        id: marker
         shell: bash
         env:
           TAG: ${{ needs.resolve.outputs.tag }}
@@ -330,6 +341,7 @@ jobs:
           echo "commit=$COMMIT"
           echo "digest=$DIGEST"
           echo "release_url=$RELEASE_URL"
+          echo "built=true" >> "$GITHUB_OUTPUT"
           {
             echo "### Verified build"
             echo
@@ -343,7 +355,9 @@ jobs:
   promote:
     name: Promote latest after verified build
     needs: [resolve, build]
-    if: needs.build.result == 'success'
+    if: >-
+      ${{ needs.build.result == 'success' &&
+          needs.build.outputs.built == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
