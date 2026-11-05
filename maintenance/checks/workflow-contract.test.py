@@ -96,6 +96,14 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("maintenance/checks/workflow-contract.test.py", head)
         self.assertNotIn("CONTRACT_REPOSITORY", head)
 
+    def test_workflow_files_are_composed_onto_upstream_source(self):
+        step = self.publish.index("name: Check out upstream source at the stable tag")
+        end = self.publish.index("name: Verify no unrecorded business-source changes")
+        block = self.publish[step:end]
+        self.assertIn('-- .github/workflows', block)
+        self.assertIn('git show "$FORK_SHA:$path"', block)
+        self.assertIn(".github/workflow-policy.json", block)
+
     def test_release_event_cannot_build_from_fork(self):
         self.assertIn(
             '"$SOURCE_REPOSITORY" != "$UPSTREAM_OWNER/$UPSTREAM_REPO"',

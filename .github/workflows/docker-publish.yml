@@ -199,6 +199,7 @@ jobs:
         run: |
           set -euo pipefail
           MAINTENANCE_FILES=$(git ls-tree -r --name-only "$FORK_SHA" -- maintenance)
+          WORKFLOW_FILES=$(git ls-tree -r --name-only "$FORK_SHA" -- .github/workflows)
           git fetch --no-tags --depth=1 \
             "https://github.com/$UPSTREAM_OWNER/$UPSTREAM_REPO.git" \
             "refs/tags/$TAG:refs/upstream/$TAG"
@@ -212,6 +213,11 @@ jobs:
             mkdir -p "$(dirname "$path")"
             git show "$FORK_SHA:$path" > "$path"
           done <<< "$MAINTENANCE_FILES"
+          while IFS= read -r path; do
+            mkdir -p "$(dirname "$path")"
+            git show "$FORK_SHA:$path" > "$path"
+          done <<< "$WORKFLOW_FILES"
+          git show "$FORK_SHA:.github/workflow-policy.json" > .github/workflow-policy.json
           echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
 
       - name: Verify no unrecorded business-source changes
