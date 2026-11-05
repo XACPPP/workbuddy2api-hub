@@ -164,6 +164,10 @@ Safety rules:
 
 `maintenance/checks/workflow-cleanup.test.py` covers the fail-closed policy
 checks and confirms that only unregistered workflow files are selected.
+The live canary test on 2026-11-05 added an unregistered
+`prune-canary.yml`; the cleanup run deleted it automatically, and
+[Actions 41957559930](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/41957559930)
+recorded `deleted .github/workflows/prune-canary.yml`.
 
 The upstream `release-checksums.yml` has been removed from this fork. It could
 not write upstream Release assets with the fork's token, and a Release event
