@@ -169,7 +169,11 @@ jobs:
               echo
               echo "\`$TAG\` already contains both architectures; no build or latest mutation."
             } >> "$GITHUB_STEP_SUMMARY"
-            no_publish
+            write_output publish false
+            write_output tag "$TAG"
+            write_output commit "$COMMIT"
+            write_output release_url "$RELEASE_URL"
+            exit 0
           fi
 
           write_output publish true
@@ -180,7 +184,9 @@ jobs:
   build:
     name: Build and verify ${{ needs.resolve.outputs.tag }}
     needs: resolve
-    if: needs.resolve.outputs.publish == 'true'
+    if: >-
+      ${{ needs.resolve.outputs.publish == 'true' &&
+          needs.resolve.outputs.tag != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     outputs:
