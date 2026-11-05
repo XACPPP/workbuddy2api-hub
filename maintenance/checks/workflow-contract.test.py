@@ -50,17 +50,11 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("platforms: linux/amd64,linux/arm64", self.publish)
 
     def test_latest_is_later_and_verified(self):
-        build_start = self.publish.index("  build:")
-        promote_start = self.publish.index("  promote:")
-        build_block = self.publish[build_start:promote_start]
-        versions_block = build_block[build_block.index("docker/metadata-action"):]
-        self.assertNotIn("value=latest", versions_block)
-        self.assertIn("needs: [resolve, build]", self.publish[promote_start:])
-        self.assertIn("imagetools create", self.publish[promote_start:])
-
-    def test_latest_requires_this_run_to_build(self):
-        promote_start = self.publish.index("  promote:")
-        self.assertIn("needs.build.outputs.built == 'true'", self.publish[promote_start:])
+        build = self.publish.index("id: build")
+        promote = self.publish.index("name: Promote verified version to latest")
+        self.assertNotIn("value=latest", self.publish[build:promote])
+        self.assertIn("imagetools create", self.publish[promote:])
+        self.assertIn('"$IMAGE:latest" --raw', self.publish[promote:])
 
     def test_concurrency_and_cache(self):
         self.assertIn(
@@ -74,14 +68,10 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("maintenance/patches/*.patch", self.publish)
 
     def test_same_version_does_not_launch_build_or_promote(self):
-        start = self.publish.index("  resolve:")
-        end = self.publish.index("  build:")
-        resolve = self.publish[start:end]
-        self.assertIn("no build or latest mutation", resolve)
-        self.assertIn("needs.resolve.outputs.publish == 'true'", self.publish)
-        self.assertIn("needs.build.outputs.built == 'true'", self.publish)
+        self.assertIn("build and latest are untouched", self.publish)
+        self.assertIn("if: steps.resolve.outputs.publish == 'true'", self.publish)
 
-    def test_manifest_check_uses_build_digest(self):
+    def test_manifest_check_uses_pushed_tag(self):
         self.assertIn('"$IMAGE:$TAG" --raw', self.publish)
         self.assertNotIn(
             "pkgs/container/workbuddy2api-hub-fork/manifests/$DIGEST", self.publish
@@ -92,11 +82,14 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn('echo "latest_published=$TAG"', self.publish)
 
     def test_oci_platform_is_nested_under_platform(self):
-        self.assertIn('platform = item.get("platform")', self.publish)
+        self.assertIn('p["platform"]["os"]', self.publish)
+        self.assertIn('p["platform"]["architecture"]', self.publish)
 
     def test_existing_tag_uses_registry_manifest(self):
-        self.assertIn('inspect "$IMAGE:$TAG" --raw', self.publish)
-        self.assertIn("manifest-platforms.py", self.publish)
+        resolve_start = self.publish.index("name: Resolve stable upstream Release")
+        resolve_end = self.publish.index("name: Stop when this version")
+        self.assertIn('inspect "$IMAGE:$TAG" --raw', self.publish[resolve_start:resolve_end])
+        self.assertIn('m.get("manifests"', self.publish[resolve_start:resolve_end])
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 name: Publish Docker image
 
-# Fork-only workflow. Business source and the Dockerfile are checked out from
-# an upstream stable tag, never from this fork's main branch.
+# Fork-only workflow. Business source and Dockerfile come from an upstream
+# stable Release, while this fork owns the publishing rules.
 on:
   schedule:
     - cron: "17 * * * *"
@@ -22,6 +22,7 @@ on:
 permissions:
   contents: read
   packages: write
+  actions: write
 
 concurrency:
   group: workbuddy-ghcr-publish
@@ -36,42 +37,42 @@ env:
   REBUILD: ${{ inputs.rebuild || false }}
 
 jobs:
-  resolve:
-    name: Resolve stable upstream release
+  publish:
+    name: Publish verified stable image
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      publish: ${{ steps.resolve.outputs.publish }}
-      tag: ${{ steps.resolve.outputs.tag }}
-      commit: ${{ steps.resolve.outputs.commit }}
-      release_url: ${{ steps.resolve.outputs.release_url }}
+    timeout-minutes: 90
     steps:
-      - name: Resolve and deduplicate
+      - name: Check out this fork's maintenance files
+        id: fork
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Resolve stable upstream Release
         id: resolve
         shell: bash
-        env:
-          FORK_REPOSITORY: xacppp/workbuddy2api-hub
         run: |
           set -euo pipefail
-          PACKAGE_URL="https://api.github.com/repos/$FORK_REPOSITORY/pkgs/container/workbuddy2api-hub-fork"
 
-          write_output() {
-            printf '%s=%s\n' "$1" "$2" >> "$GITHUB_OUTPUT"
+          done_unchanged() {
+            {
+              echo "### Already published"
+              echo
+              echo "\`$TAG\` already has both architectures; build and latest are untouched."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+            echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+            echo "release_url=$RELEASE_URL" >> "$GITHUB_OUTPUT"
+            exit 0
           }
 
-          # Scheduled checks are owned by the fork; release events are owned
-          # by the repository that published the upstream Release.
-          if [[ "${{ github.event_name }}" == "release" ]]; then
-            SOURCE_REPOSITORY="${{ github.repository }}"
-          else
-            SOURCE_REPOSITORY="$UPSTREAM_OWNER/$UPSTREAM_REPO"
-          fi
-
-          no_publish() {
-            write_output publish false
-            write_output tag ""
-            write_output commit ""
-            write_output release_url ""
+          no_release() {
+            echo "::warning::No eligible stable upstream Release; existing images stay unchanged."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            echo "commit=" >> "$GITHUB_OUTPUT"
+            echo "release_url=" >> "$GITHUB_OUTPUT"
             exit 0
           }
 
@@ -79,42 +80,39 @@ jobs:
             [[ "$1" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
           }
 
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            SOURCE_REPOSITORY="${{ github.repository }}"
+          else
+            SOURCE_REPOSITORY="$UPSTREAM_OWNER/$UPSTREAM_REPO"
+          fi
+
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             TAG="$SOURCE_TAG"
             if ! is_stable_tag "$TAG"; then
-              echo "::error::Manual input must be exact stable semver like v1.10.9."
+              echo "::error::Manual input must be exact semver like v1.10.9."
               exit 1
             fi
-            RELEASE_URL=$(gh release view "$TAG" \
-              --repo "$SOURCE_REPOSITORY" --json url --jq '.url')
-            DRAFT=$(gh release view "$TAG" \
-              --repo "$SOURCE_REPOSITORY" --json isDraft --jq '.isDraft')
-            PRE=$(gh release view "$TAG" \
-              --repo "$SOURCE_REPOSITORY" --json isPrerelease --jq '.isPrerelease')
-            PUBLISHED=$(gh release view "$TAG" \
-              --repo "$SOURCE_REPOSITORY" --json publishedAt --jq '.publishedAt')
-            if [[ "$DRAFT" != "false" || "$PRE" != "false" ]]; then
-              echo "::error::$TAG is not a published stable Release."
-              exit 1
-            fi
-            if [[ -z "$PUBLISHED" || "$PUBLISHED" == "null" ]]; then
-              echo "::error::$TAG has no publication timestamp."
-              exit 1
-            fi
+            RELEASE_URL=$(gh release view "$TAG" --repo "$SOURCE_REPOSITORY" --json url --jq '.url')
+            DRAFT=$(gh release view "$TAG" --repo "$SOURCE_REPOSITORY" --json isDraft --jq '.isDraft')
+            PRE=$(gh release view "$TAG" --repo "$SOURCE_REPOSITORY" --json isPrerelease --jq '.isPrerelease')
+            PUBLISHED=$(gh release view "$TAG" --repo "$SOURCE_REPOSITORY" --json publishedAt --jq '.publishedAt')
+            [[ "$DRAFT" == "false" && "$PRE" == "false" ]] || {
+              echo "::error::$TAG is not a published stable Release."; exit 1;
+            }
+            [[ -n "$PUBLISHED" && "$PUBLISHED" != "null" ]] || {
+              echo "::error::$TAG has no publication timestamp."; exit 1;
+            }
           else
-            # A Git tag alone, draft, or prerelease is not a stable release.
+            # A lone Git tag, draft, or prerelease is not a stable Release.
             TAG=$(gh api --paginate \
               "repos/$SOURCE_REPOSITORY/releases?per_page=100" \
               --jq '[.[] | select(.draft == false and .prerelease == false and .published_at != null) | select(.tag_name | test("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"))][0].tag_name')
             if [[ -z "$TAG" ]]; then
-              echo "::warning::No stable upstream Release; keeping current images."
-              no_publish
+              no_release
             fi
-            RELEASE_URL=$(gh api \
-              "repos/$SOURCE_REPOSITORY/releases/tags/$TAG" --jq '.html_url')
+            RELEASE_URL=$(gh api "repos/$SOURCE_REPOSITORY/releases/tags/$TAG" --jq '.html_url')
           fi
 
-          read -r OWNER REPO <<< "${SOURCE_REPOSITORY%%/*} ${SOURCE_REPOSITORY#*/}"
           TAG_OBJECT=$(gh api "repos/$SOURCE_REPOSITORY/git/ref/tags/$TAG")
           TAG_TYPE=$(printf '%s' "$TAG_OBJECT" | python3 -c 'import json,sys; print(json.load(sys.stdin)["object"]["type"])')
           if [[ "$TAG_TYPE" == "tag" ]]; then
@@ -123,31 +121,29 @@ jobs:
           else
             COMMIT=$(printf '%s' "$TAG_OBJECT" | python3 -c 'import json,sys; print(json.load(sys.stdin)["object"]["sha"])')
           fi
-          if [[ ! "$COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::Could not resolve $TAG to a commit."
-            exit 1
-          fi
-
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::Could not resolve $TAG to a commit."; exit 1;
+          }
           echo "Resolved $TAG -> $COMMIT"
 
+          EXISTING="false"
           if [[ "$REBUILD" != "true" ]]; then
-            EXISTING_TAG_DIGEST=""
-            echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            docker buildx imagetools inspect "$IMAGE:$TAG" --raw > existing.json 2>/dev/null || true
-            EXISTING_TAG_DIGEST=$(docker buildx imagetools inspect "$IMAGE:$TAG" \
-              --format '{{json .Manifest}}' 2>/dev/null \
-              | python3 -c 'import json,sys; print(json.load(sys.stdin).get("digest", ""))' \
-              2>/dev/null || true)
-            if [[ "$EXISTING_TAG_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-              PLATFORMS=$(python3 maintenance/checks/manifest-platforms.py existing.json 2>/dev/null || true)
+            printf '%s' "$GH_TOKEN" \
+              | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            if docker buildx imagetools inspect "$IMAGE:$TAG" --raw > existing.json 2>/dev/null; then
+              PLATFORMS=$(python3 - existing.json <<'PY'
+          import json, sys
+          m = json.load(open(sys.argv[1], encoding="utf-8"))
+          print(",".join(sorted(
+              f"{p['platform']['os']}/{p['platform']['architecture']}"
+              for p in m.get("manifests", [])
+              if p.get("platform", {}).get("os") not in (None, "unknown")
+          )))
+          PY
+          )
               if [[ ",$PLATFORMS," == *",linux/amd64,"* && \
                     ",$PLATFORMS," == *",linux/arm64,"* ]]; then
-                if [[ "${{ github.event_name }}" == "release" && \
-                      "$SOURCE_REPOSITORY" != "$UPSTREAM_OWNER/$UPSTREAM_REPO" ]]; then
-                  echo "::notice::Ignoring a Release event from a non-upstream repository."
-                  no_publish
-                fi
-                echo "$TAG already has both architectures; no rebuild."
+                EXISTING="true"
               else
                 echo "::error::$TAG exists without both required architectures."
                 exit 1
@@ -159,52 +155,35 @@ jobs:
           if [[ "${{ github.event_name }}" == "release" && \
                 "$SOURCE_REPOSITORY" != "$UPSTREAM_OWNER/$UPSTREAM_REPO" ]]; then
             echo "::notice::Release is not on the upstream repository; no image."
-            no_publish
-          fi
-
-          if [[ "$REBUILD" != "true" && -n "$EXISTING_TAG_DIGEST" ]]; then
-            {
-              echo "### Already published"
-              echo
-              echo "\`$TAG\` already contains both architectures; no build or latest mutation."
-            } >> "$GITHUB_STEP_SUMMARY"
-            write_output publish false
-            write_output tag "$TAG"
-            write_output commit "$COMMIT"
-            write_output release_url "$RELEASE_URL"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            echo "commit=" >> "$GITHUB_OUTPUT"
+            echo "release_url=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          write_output publish true
-          write_output tag "$TAG"
-          write_output commit "$COMMIT"
-          write_output release_url "$RELEASE_URL"
+          if [[ "$EXISTING" == "true" ]]; then
+            done_unchanged
+          fi
 
-  build:
-    name: Build and verify ${{ needs.resolve.outputs.tag }}
-    needs: resolve
-    if: >-
-      ${{ needs.resolve.outputs.publish == 'true' &&
-          needs.resolve.outputs.tag != '' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    outputs:
-      commit: ${{ steps.source.outputs.commit }}
-      tag: ${{ needs.resolve.outputs.tag }}
-      digest: ${{ steps.build.outputs.digest }}
-      built: ${{ steps.marker.outputs.built }}
-    steps:
-      - name: Check out maintenance files
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+          echo "release_url=$RELEASE_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Stop when this version is already published
+        if: steps.resolve.outputs.publish != 'true'
+        shell: bash
+        run: |
+          echo "No build needed for resolve result: ${{ steps.resolve.outputs.publish }}"
 
       - name: Check out upstream source at the stable tag
+        if: steps.resolve.outputs.publish == 'true'
         id: source
         shell: bash
         env:
-          TAG: ${{ needs.resolve.outputs.tag }}
-          EXPECTED_COMMIT: ${{ needs.resolve.outputs.commit }}
+          TAG: ${{ steps.resolve.outputs.tag }}
+          EXPECTED_COMMIT: ${{ steps.resolve.outputs.commit }}
           FORK_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
@@ -225,9 +204,10 @@ jobs:
           echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
 
       - name: Verify no unrecorded business-source changes
+        if: steps.resolve.outputs.publish == 'true'
         shell: bash
         env:
-          COMMIT: ${{ needs.resolve.outputs.commit }}
+          COMMIT: ${{ steps.resolve.outputs.commit }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -239,7 +219,8 @@ jobs:
 
       - name: Apply maintained patches
         if: >-
-          ${{ hashFiles('maintenance/patches/*.patch') != '' }}
+          ${{ steps.resolve.outputs.publish == 'true' &&
+              hashFiles('maintenance/patches/*.patch') != '' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -251,6 +232,7 @@ jobs:
           done
 
       - name: Validate workflow contract
+        if: steps.resolve.outputs.publish == 'true'
         shell: bash
         env:
           CONTRACT_REPOSITORY: XACPPP/workbuddy2api-hub
@@ -258,22 +240,23 @@ jobs:
         run: |
           set -euo pipefail
           for path in docker-publish.yml tests.yml release.yml revert-guard.yml; do
-            gh api \
-              -H 'Accept: application/vnd.github.raw+json' \
+            gh api -H 'Accept: application/vnd.github.raw+json' \
               "repos/$CONTRACT_REPOSITORY/contents/.github/workflows/$path?ref=$CONTRACT_REF" \
               > "$RUNNER_TEMP/$path"
           done
-          gh api \
-            -H 'Accept: application/vnd.github.raw+json' \
+          gh api -H 'Accept: application/vnd.github.raw+json' \
             "repos/$CONTRACT_REPOSITORY/contents/maintenance/checks/workflow-contract.test.py?ref=$CONTRACT_REF" \
             > "$RUNNER_TEMP/workflow-contract.test.py"
           python3 "$RUNNER_TEMP/workflow-contract.test.py" \
             --workflow-dir "$RUNNER_TEMP"
 
       - uses: docker/setup-qemu-action@v3
+        if: steps.resolve.outputs.publish == 'true'
       - uses: docker/setup-buildx-action@v3
+        if: steps.resolve.outputs.publish == 'true'
 
       - name: Log in to GHCR
+        if: steps.resolve.outputs.publish == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -281,21 +264,23 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract Docker metadata
+        if: steps.resolve.outputs.publish == 'true'
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE }}
           tags: |
-            type=raw,value=${{ needs.resolve.outputs.tag }}
+            type=raw,value=${{ steps.resolve.outputs.tag }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ env.UPSTREAM_OWNER }}/${{ env.UPSTREAM_REPO }}
-            org.opencontainers.image.version=${{ needs.resolve.outputs.tag }}
-            org.opencontainers.image.revision=${{ needs.resolve.outputs.commit }}
-            io.github.xacppp.release-url=${{ needs.resolve.outputs.release_url }}
+            org.opencontainers.image.version=${{ steps.resolve.outputs.tag }}
+            org.opencontainers.image.revision=${{ steps.resolve.outputs.commit }}
+            io.github.xacppp.release-url=${{ steps.resolve.outputs.release_url }}
 
-      # The version tag is visible only after complete multi-platform push.
-      # latest is not applied here.
-      - name: Build, push and verify version manifest
+      # latest is deliberately not in this list. The version tag becomes
+      # visible only when both platform builds complete.
+      - name: Build and push version tag
+        if: steps.resolve.outputs.publish == 'true'
         id: build
         uses: docker/build-push-action@v6
         with:
@@ -311,124 +296,67 @@ jobs:
           sbom: true
 
       - name: Verify both architectures in the pushed version
+        if: steps.resolve.outputs.publish == 'true'
         shell: bash
         env:
-          TAG: ${{ needs.resolve.outputs.tag }}
+          TAG: ${{ steps.resolve.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          printf '%s' "$GH_TOKEN" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           docker buildx imagetools inspect "$IMAGE:$TAG" --raw > manifest.json
           python3 - <<'PY'
           import json, os
-          manifest = json.load(open("manifest.json", encoding="utf-8"))
-          platforms = set()
-          for item in manifest.get("manifests", []):
-              platform = item.get("platform") or {}
-              platforms.add((platform.get("os"), platform.get("architecture")))
+          m = json.load(open("manifest.json", encoding="utf-8"))
+          platforms = {
+              (p["platform"]["os"], p["platform"]["architecture"])
+              for p in m.get("manifests", []) if p.get("platform")
+          }
           required = {("linux", "amd64"), ("linux", "arm64")}
           if not required.issubset(platforms):
               raise SystemExit(f"{os.environ['TAG']} lacks {required}: {sorted(platforms)}")
           print(f"{os.environ['TAG']} verified: {sorted(platforms)}")
           PY
           docker buildx imagetools inspect "$IMAGE:$TAG"
-          docker logout ghcr.io
 
-      - name: Record verified source and digest
-        id: marker
+      - name: Promote verified version to latest
+        if: steps.resolve.outputs.publish == 'true'
         shell: bash
         env:
-          TAG: ${{ needs.resolve.outputs.tag }}
-          COMMIT: ${{ needs.resolve.outputs.commit }}
+          TAG: ${{ steps.resolve.outputs.tag }}
           DIGEST: ${{ steps.build.outputs.digest }}
-          RELEASE_URL: ${{ needs.resolve.outputs.release_url }}
+          COMMIT: ${{ steps.resolve.outputs.commit }}
+          RELEASE_URL: ${{ steps.resolve.outputs.release_url }}
         run: |
           set -euo pipefail
+          docker buildx imagetools create \
+            --tag "$IMAGE:latest" "$IMAGE:$TAG"
+          docker buildx imagetools inspect "$IMAGE:latest" --raw > latest.json
+          python3 - <<'PY'
+          import json
+          m = json.load(open("latest.json", encoding="utf-8"))
+          platforms = {
+              (p["platform"]["os"], p["platform"]["architecture"])
+              for p in m.get("manifests", []) if p.get("platform")
+          }
+          required = {("linux", "amd64"), ("linux", "arm64")}
+          if not required.issubset(platforms):
+              raise SystemExit(f"latest lacks {required}: {sorted(platforms)}")
+          print(f"latest verified: {sorted(platforms)}")
+          PY
+          echo "latest_published=$TAG"
           echo "release=$TAG"
           echo "commit=$COMMIT"
           echo "digest=$DIGEST"
-          echo "release_url=$RELEASE_URL"
-          echo "built=true" >> "$GITHUB_OUTPUT"
           {
-            echo "### Verified build"
+            echo "### Published"
             echo
             echo "| Field | Value |"
             echo "| --- | --- |"
             echo "| Upstream | [$TAG]($RELEASE_URL) |"
             echo "| Commit | \`$COMMIT\` |"
             echo "| Digest | \`$DIGEST\` |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  promote:
-    name: Promote latest after verified build
-    needs: [resolve, build]
-    if: >-
-      ${{ needs.build.result == 'success' &&
-          needs.build.outputs.built == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Check and move latest
-        shell: bash
-        env:
-          TAG: ${{ needs.build.outputs.tag }}
-          DIGEST: ${{ needs.build.outputs.digest }}
-          COMMIT: ${{ needs.build.outputs.commit }}
-        run: |
-          set -euo pipefail
-          docker buildx imagetools create \
-            --tag "$IMAGE:latest" "$IMAGE:$TAG"
-          for attempt in 1 2 3 4 5; do
-            if docker buildx imagetools inspect "$IMAGE:latest" --raw \
-              | python3 -c '
-          import json, sys
-          m = json.load(sys.stdin)
-          platforms = set()
-          for item in m.get("manifests", []):
-              platform = item.get("platform") or {}
-              platforms.add((platform.get("os"), platform.get("architecture")))
-          assert {("linux", "amd64"), ("linux", "arm64")} <= platforms
-          '; then
-              echo "latest verified for both architectures"
-              break
-            fi
-            if [[ "$attempt" == "5" ]]; then
-              echo "::error::latest did not contain both architectures."
-              exit 1
-            fi
-            sleep 5
-          done
-          echo "latest_published=$TAG"
-          {
-            echo "### Published"
-            echo
-            echo "- \`$IMAGE:$TAG\`"
-            echo "- \`$IMAGE:latest\`"
-            echo "- digest \`$DIGEST\`"
-            echo "- source commit \`$COMMIT\`"
+            echo "| Platforms | \`linux/amd64\`, \`linux/arm64\` |"
           } >> "$GITHUB_STEP_SUMMARY"
           docker logout ghcr.io
-
-  record-failure:
-    name: Record failed build
-    needs: [resolve, build]
-    if: >-
-      ${{ always() && needs.resolve.outputs.publish == 'true' &&
-          needs.build.result != 'success' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Keep latest untouched and record attempt
-        shell: bash
-        env:
-          TAG: ${{ needs.resolve.outputs.tag }}
-          COMMIT: ${{ needs.resolve.outputs.commit }}
-        run: |
-          set -euo pipefail
-          echo "failed_attempt=$TAG@$COMMIT"
-          echo "::error::Build failed for $TAG; old latest was not changed."
-          exit 1
