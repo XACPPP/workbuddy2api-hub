@@ -10,6 +10,12 @@
 >
 > Image: `ghcr.io/xacppp/workbuddy2api-hub-fork:latest`.
 
+The reusable setup and audit workflow from this fork is packaged as the Codex
+skill `upstream-fork-ghcr-maintainer` in `~/.codex/skills`. See
+[`maintenance/README.md`](maintenance/README.md) for this repository's live
+configuration and `references/workbuddy-example.md` in that skill for the
+worked example.
+
 > [!IMPORTANT]
 > **项目进入低频维护（2026-10-23） / Low-frequency maintenance**
 >
