@@ -94,6 +94,12 @@ requested tag against the upstream stable Release, and then uses the same
 resolution, source, build, manifest, and promotion gates as a manual run. It
 does not trust the event payload as proof that a Release is stable.
 
+On 2026-11-05 at 17:01 Asia/Shanghai, after the publish workflow succeeded and
+reported `active`, the `event=schedule` query still returned no runs. Manual
+publication and cleanup are verified; inherited fork cron dispatch is not.
+Until a scheduled run is observed, the hourly check is a fallback rather than
+a proven trigger.
+
 To run it manually:
 
 1. Open **Actions** in the fork.
