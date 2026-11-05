@@ -13,6 +13,7 @@ Release. Fork maintenance files are composed onto that tree explicitly.
 | Release trigger | `.github/workflows/docker-publish.yml` |
 | Patch/workflow checks | `maintenance/checks/`, `maintenance/patches/` |
 | Image | `ghcr.io/xacppp/workbuddy2api-hub-fork` |
+| Workflow allowlist | `.github/workflow-policy.json` |
 
 The upstream default branch is `main`. Upstream provides Releases and tags;
 the fork does not mirror a moving branch into its own source tree.
@@ -139,6 +140,30 @@ The fork keeps only workflows that still have an active owner:
 | `docker-publish.yml` | Upstream release discovery, deduplication, dual-arch GHCR build, latest promotion |
 | `tests.yml` | Fork maintenance contract and release-engineering checks |
 | `revert-guard.yml` | Pull-request rollback protection; kept unchanged |
+| `prune-workflows.yml` | Deletes workflow files absent from the fork allowlist |
+
+## Automatic workflow cleanup
+
+`.github/workflow-policy.json` is the only source of truth for which workflow
+files may remain. `prune-workflows.yml` runs immediately when a workflow or the
+policy changes, and again every six hours at minute 23 (`23 */6 * * *`). It
+uses the GitHub Contents API to delete every `.yml` or `.yaml` below
+`.github/workflows/` that is not in the allowlist.
+
+Safety rules:
+
+- Only unregistered files are treated as obsolete. A workflow that failed
+  once is not automatically deleted; transient failure is not evidence of
+  permanent invalidity.
+- A missing, malformed, or incomplete policy aborts cleanup without deleting
+  anything.
+- The required publishing and maintenance workflows must remain present in the
+  policy. This prevents an empty allowlist from deleting the release chain.
+- A normal push triggers the cleanup at once; the six-hour schedule is a
+  fallback for missed runs.
+
+`maintenance/checks/workflow-cleanup.test.py` covers the fail-closed policy
+checks and confirms that only unregistered workflow files are selected.
 
 The upstream `release-checksums.yml` has been removed from this fork. It could
 not write upstream Release assets with the fork's token, and a Release event

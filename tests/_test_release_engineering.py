@@ -33,6 +33,7 @@ class WorkflowTests(unittest.TestCase):
     def test_maintain_workflow_runs_the_fork_contract(self):
         text = read(".github", "workflows", "tests.yml")
         self.assertIn("maintenance/checks/workflow-contract.test.py", text)
+        self.assertIn("maintenance/checks/workflow-cleanup.test.py", text)
         self.assertIn("tests/_test_release_engineering.py", text)
 
     def test_obsolete_upstream_checksums_workflow_is_removed(self):

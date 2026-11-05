@@ -1,0 +1,37 @@
+name: prune-workflows
+
+# Deletes workflow files absent from .github/workflow-policy.json. A transient
+# failed run is not "invalid": only unregistered files are removed.
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/**"
+      - ".github/workflow-policy.json"
+      - "maintenance/cleanup-workflows.py"
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prune-workflows
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: Remove unregistered workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply workflow allowlist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          python maintenance/cleanup-workflows.py
+          --repo "${{ github.repository }}"
+          --ref main
+          --apply

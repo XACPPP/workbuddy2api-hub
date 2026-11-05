@@ -31,6 +31,7 @@ class WorkflowContractTest(unittest.TestCase):
             },
             {
                 "docker-publish.yml",
+                "prune-workflows.yml",
                 "revert-guard.yml",
                 "tests.yml",
             },
@@ -130,6 +131,16 @@ class WorkflowContractTest(unittest.TestCase):
             "maintenance/checks/manifest-platforms.py",
             self.publish[resolve_start:resolve_end],
         )
+
+    def test_auto_cleanup_is_registered_and_periodic(self):
+        cleanup = (self.workflows / "prune-workflows.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('cron: "23 */6 * * *"', cleanup)
+        self.assertIn("contents: write", cleanup)
+        self.assertIn("cleanup-workflows.py", cleanup)
+        policy = self.root / ".github" / "workflow-policy.json"
+        self.assertTrue(policy.is_file())
 
 
 if __name__ == "__main__":

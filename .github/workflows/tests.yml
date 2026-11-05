@@ -28,5 +28,7 @@ jobs:
           python-version: "3.12"
       - name: Validate maintained workflow set and release invariants
         run: python maintenance/checks/workflow-contract.test.py
+      - name: Validate automatic workflow cleanup
+        run: python maintenance/checks/workflow-cleanup.test.py
       - name: Validate release-engineering integration
         run: python tests/_test_release_engineering.py

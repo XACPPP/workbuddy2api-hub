@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "allowed": [
+    "docker-publish.yml",
+    "prune-workflows.yml",
+    "revert-guard.yml",
+    "tests.yml"
+  ]
+}
