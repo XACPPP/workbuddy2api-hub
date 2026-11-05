@@ -1,5 +1,15 @@
 # WorkBuddy2API-Hub — 国际版、国内版多账号网关中枢
 
+> [!NOTE]
+> **This is XACPPP's maintained fork.** The upstream source of truth remains
+> [`ardeyouxipianyi/workbuddy2api-hub`](https://github.com/ardeyouxipianyi/workbuddy2api-hub).
+> Automated images are built from a published upstream stable Release, not from
+> this fork's `main` branch. See [`maintenance/README.md`](maintenance/README.md)
+> for the upstream-version rule, manual rebuild controls, patch boundary, and
+> release verification.
+>
+> Image: `ghcr.io/xacppp/workbuddy2api-hub:latest`.
+
 > [!IMPORTANT]
 > **项目进入低频维护（2026-10-23） / Low-frequency maintenance**
 >

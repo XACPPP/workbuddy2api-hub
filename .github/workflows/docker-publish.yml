@@ -53,10 +53,10 @@ jobs:
         id: resolve
         shell: bash
         env:
-          REPOSITORY: XACPPP/workbuddy2api-hub
+          FORK_REPOSITORY: xacppp/workbuddy2api-hub
         run: |
           set -euo pipefail
-          PACKAGE_URL="https://api.github.com/repos/$REPOSITORY/pkgs/container/workbuddy2api-hub"
+          PACKAGE_URL="https://api.github.com/repos/$FORK_REPOSITORY/pkgs/container/workbuddy2api-hub"
 
           write_output() {
             printf '%s=%s\n' "$1" "$2" >> "$GITHUB_OUTPUT"
@@ -65,11 +65,9 @@ jobs:
           # Scheduled checks are owned by the fork; release events are owned
           # by the repository that published the upstream Release.
           if [[ "${{ github.event_name }}" == "release" ]]; then
-            OWNER="${{ github.repository_owner }}"
-            REPO="${{ github.event.repository.name }}"
+            SOURCE_REPOSITORY="${{ github.repository }}"
           else
-            OWNER="$UPSTREAM_OWNER"
-            REPO="$UPSTREAM_REPO"
+            SOURCE_REPOSITORY="$UPSTREAM_OWNER/$UPSTREAM_REPO"
           fi
 
           no_publish() {
@@ -90,35 +88,43 @@ jobs:
               echo "::error::Manual input must be exact stable semver like v1.10.9."
               exit 1
             fi
-            RELEASE=$(gh api "repos/$OWNER/$REPO/releases/tags/$TAG")
-            RELEASE_URL=$(printf '%s' "$RELEASE" | gh api --input - --jq '.html_url' 2>/dev/null)
-            DRAFT=$(printf '%s' "$RELEASE" | gh api --input - --jq '.draft' 2>/dev/null)
-            PRE=$(printf '%s' "$RELEASE" | gh api --input - --jq '.prerelease' 2>/dev/null)
+            RELEASE_URL=$(gh release view "$TAG" \
+              --repo "$SOURCE_REPOSITORY" --json url --jq '.url')
+            DRAFT=$(gh release view "$TAG" \
+              --repo "$SOURCE_REPOSITORY" --json isDraft --jq '.isDraft')
+            PRE=$(gh release view "$TAG" \
+              --repo "$SOURCE_REPOSITORY" --json isPrerelease --jq '.isPrerelease')
+            PUBLISHED=$(gh release view "$TAG" \
+              --repo "$SOURCE_REPOSITORY" --json publishedAt --jq '.publishedAt')
             if [[ "$DRAFT" != "false" || "$PRE" != "false" ]]; then
               echo "::error::$TAG is not a published stable Release."
+              exit 1
+            fi
+            if [[ -z "$PUBLISHED" || "$PUBLISHED" == "null" ]]; then
+              echo "::error::$TAG has no publication timestamp."
               exit 1
             fi
           else
             # A Git tag alone, draft, or prerelease is not a stable release.
             TAG=$(gh api --paginate \
-              "repos/$OWNER/$REPO/releases?per_page=100" \
+              "repos/$SOURCE_REPOSITORY/releases?per_page=100" \
               --jq '[.[] | select(.draft == false and .prerelease == false and .published_at != null) | select(.tag_name | test("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"))][0].tag_name')
             if [[ -z "$TAG" ]]; then
               echo "::warning::No stable upstream Release; keeping current images."
               no_publish
             fi
             RELEASE_URL=$(gh api \
-              "repos/$OWNER/$REPO/releases/tags/$TAG" --jq '.html_url')
+              "repos/$SOURCE_REPOSITORY/releases/tags/$TAG" --jq '.html_url')
           fi
 
-          TAGGED=$(gh api "repos/$OWNER/$REPO/git/ref/tags/$TAG")
-          OBJECT_TYPE=$(printf '%s' "$TAGGED" | gh api --input - --jq '.object.type' 2>/dev/null)
-          if [[ "$OBJECT_TYPE" == "tag" ]]; then
-            COMMIT=$(printf '%s' "$TAGGED" \
-              | gh api --input - --jq '.object.url' \
-              | xargs gh api --jq '.object.sha')
+          read -r OWNER REPO <<< "${SOURCE_REPOSITORY%%/*} ${SOURCE_REPOSITORY#*/}"
+          TAG_OBJECT=$(gh api "repos/$SOURCE_REPOSITORY/git/ref/tags/$TAG")
+          TAG_TYPE=$(printf '%s' "$TAG_OBJECT" | python3 -c 'import json,sys; print(json.load(sys.stdin)["object"]["type"])')
+          if [[ "$TAG_TYPE" == "tag" ]]; then
+            TAG_URL=$(printf '%s' "$TAG_OBJECT" | python3 -c 'import json,sys; print(json.load(sys.stdin)["object"]["url"])')
+            COMMIT=$(gh api "$TAG_URL" --jq '.object.sha')
           else
-            COMMIT=$(printf '%s' "$TAGGED" | gh api --input - --jq '.object.sha')
+            COMMIT=$(printf '%s' "$TAG_OBJECT" | python3 -c 'import json,sys; print(json.load(sys.stdin)["object"]["sha"])')
           fi
           if [[ ! "$COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::Could not resolve $TAG to a commit."
@@ -133,13 +139,13 @@ jobs:
               2>/dev/null | head -n1 || true)
             if [[ -n "$EXISTING_TAG_DIGEST" ]]; then
               PLATFORMS=$(gh api \
-                "/repos/$REPOSITORY/pkgs/container/workbuddy2api-hub/manifests/$EXISTING_TAG_DIGEST" \
+                "/repos/$FORK_REPOSITORY/pkgs/container/workbuddy2api-hub/manifests/$EXISTING_TAG_DIGEST" \
                 --jq '[.platforms[]? | "\(.os)/\(.architecture)"] | join(",")' \
                 2>/dev/null || true)
               if [[ ",$PLATFORMS," == *",linux/amd64,"* && \
                     ",$PLATFORMS," == *",linux/arm64,"* ]]; then
                 if [[ "${{ github.event_name }}" == "release" && \
-                      "$OWNER" != "$UPSTREAM_OWNER" ]]; then
+                      "$SOURCE_REPOSITORY" != "$UPSTREAM_OWNER/$UPSTREAM_REPO" ]]; then
                   echo "::notice::Ignoring a Release event from a non-upstream repository."
                   no_publish
                 fi
@@ -152,7 +158,7 @@ jobs:
           fi
 
           if [[ "${{ github.event_name }}" == "release" && \
-                "$OWNER" != "$UPSTREAM_OWNER" ]]; then
+                "$SOURCE_REPOSITORY" != "$UPSTREAM_OWNER/$UPSTREAM_REPO" ]]; then
             echo "::notice::Release is not on the upstream repository; no image."
             no_publish
           fi
