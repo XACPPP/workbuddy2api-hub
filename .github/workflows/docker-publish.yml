@@ -132,16 +132,14 @@ jobs:
 
           if [[ "$REBUILD" != "true" ]]; then
             EXISTING_TAG_DIGEST=""
-            if gh api "$PACKAGE_URL" >/dev/null 2>&1; then
-              EXISTING_TAG_DIGEST=$(gh api --paginate "$PACKAGE_URL/versions" \
-                --jq '.[] | select((.metadata.container.tags // []) | index("'"$TAG"'")) | .name' \
-                2>/dev/null | head -n1 || true)
-            fi
+            echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            docker buildx imagetools inspect "$IMAGE:$TAG" --raw > existing.json 2>/dev/null || true
+            EXISTING_TAG_DIGEST=$(docker buildx imagetools inspect "$IMAGE:$TAG" \
+              --format '{{json .Manifest}}' 2>/dev/null \
+              | python3 -c 'import json,sys; print(json.load(sys.stdin).get("digest", ""))' \
+              2>/dev/null || true)
             if [[ "$EXISTING_TAG_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-              PLATFORMS=$(gh api \
-                "/repos/$FORK_REPOSITORY/pkgs/container/workbuddy2api-hub-fork/manifests/$EXISTING_TAG_DIGEST" \
-                --jq '[.platforms[]? | "\(.os)/\(.architecture)"] | join(",")' \
-                2>/dev/null || true)
+              PLATFORMS=$(python3 maintenance/checks/manifest-platforms.py existing.json 2>/dev/null || true)
               if [[ ",$PLATFORMS," == *",linux/amd64,"* && \
                     ",$PLATFORMS," == *",linux/arm64,"* ]]; then
                 if [[ "${{ github.event_name }}" == "release" && \
@@ -155,6 +153,7 @@ jobs:
                 exit 1
               fi
             fi
+            docker logout ghcr.io
           fi
 
           if [[ "${{ github.event_name }}" == "release" && \

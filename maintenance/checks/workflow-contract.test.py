@@ -94,6 +94,10 @@ class WorkflowContractTest(unittest.TestCase):
     def test_oci_platform_is_nested_under_platform(self):
         self.assertIn('platform = item.get("platform")', self.publish)
 
+    def test_existing_tag_uses_registry_manifest(self):
+        self.assertIn('inspect "$IMAGE:$TAG" --raw', self.publish)
+        self.assertIn("manifest-platforms.py", self.publish)
+
 
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "--workflow-dir":
