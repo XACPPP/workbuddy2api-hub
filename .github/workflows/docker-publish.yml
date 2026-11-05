@@ -213,6 +213,7 @@ jobs:
             mkdir -p "$(dirname "$path")"
             git show "$FORK_SHA:$path" > "$path"
           done <<< "$MAINTENANCE_FILES"
+          rm -rf .github/workflows
           while IFS= read -r path; do
             mkdir -p "$(dirname "$path")"
             git show "$FORK_SHA:$path" > "$path"

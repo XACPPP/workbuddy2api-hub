@@ -100,6 +100,7 @@ class WorkflowContractTest(unittest.TestCase):
         step = self.publish.index("name: Check out upstream source at the stable tag")
         end = self.publish.index("name: Verify no unrecorded business-source changes")
         block = self.publish[step:end]
+        self.assertIn("rm -rf .github/workflows", block)
         self.assertIn('-- .github/workflows', block)
         self.assertIn('git show "$FORK_SHA:$path"', block)
         self.assertIn(".github/workflow-policy.json", block)
