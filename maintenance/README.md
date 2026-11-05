@@ -23,7 +23,7 @@ the fork does not mirror a moving branch into its own source tree.
 | --- | --- |
 | Upstream Release | `v1.10.9` |
 | Upstream source commit | `077fb2fcfc273e29bd1266e527afc4a3d548b516` |
-| Version and `latest` manifest | See the successful run's `digest=` line |
+| Version and `latest` manifest | `sha256:a896cee3cc5112a86b586f2d15d6a90cfca4a718fb78922eeddc7a13900accb5` |
 | Platforms | `linux/amd64`, `linux/arm64` |
 | Successful forced-build run | [Actions 41954943720](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/41954943720) |
 
@@ -49,10 +49,10 @@ resolved to commit `077fb2fcfc273e29bd1266e527afc4a3d548b516`.
 
 ## Schedule and manual controls
 
-The workflow checks upstream at minute 17 of every hour (`17 * * * *`).
-The repository's default-branch workflow definition is used, so this schedule
-runs even though the business source itself is checked out from the upstream
-tag inside the job.
+The workflow checks upstream at minute 17 of every hour (`17 * * * *`). The
+workflow definition used by GitHub Actions is taken from the repository's
+default branch; at execution time the upstream source is checked out from the
+stable tag.
 
 GitHub's cron scheduler can delay scheduled runs during peak load. The stated
 hourly cadence is the requested cadence, not a guarantee of exact start time.
@@ -68,8 +68,8 @@ To run it manually:
    `v1.10.9`.
 4. Leave `rebuild` off for the normal idempotent check.
 
-Turn `rebuild` on only after reviewing the version, commit, and expected image.
-An automatic re-scan never rebuilds a tag that already exists with both
+Turn `rebuild` on only after checking the version, commit, and expected image.
+An automatic re-scan never rebuilds a tag that is already present with both
 required architectures.
 
 The publish and promotion steps use one guarded job. This avoids GitHub's

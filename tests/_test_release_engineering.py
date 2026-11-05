@@ -41,13 +41,9 @@ class WorkflowTests(unittest.TestCase):
         # test pins, otherwise a passing CI would mean nothing.
         self.assertIn('"version"', text)
 
-    def test_release_checksums_workflow_hashes_every_asset(self):
-        text = read(".github", "workflows", "release-checksums.yml")
-        self.assertIn("types: [published]", text)
-        self.assertIn("gh release download", text)
-        self.assertIn("sha256sum *", text)
-        self.assertIn("gh release upload", text)
-        self.assertIn("checksums.txt", text)
+    def test_obsolete_upstream_checksums_workflow_is_removed(self):
+        path = os.path.join(ROOT, ".github", "workflows", "release-checksums.yml")
+        self.assertFalse(os.path.exists(path), "removed workflow must not return")
 
 
 class DockerTests(unittest.TestCase):

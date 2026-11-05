@@ -96,6 +96,13 @@ class WorkflowContractTest(unittest.TestCase):
             self.publish,
         )
 
+    def test_failure_cannot_reach_latest(self):
+        promote = self.publish.index("name: Promote verified version to latest")
+        build = self.publish.index("name: Build and push version tag")
+        self.assertLess(build, promote)
+        self.assertIn("manifest-platforms.py latest.json", self.publish)
+        self.assertIn("latest lacks", self.publish)
+
     def test_manifest_check_uses_pushed_tag(self):
         self.assertIn('"$IMAGE:$TAG" --raw', self.publish)
         self.assertNotIn(
