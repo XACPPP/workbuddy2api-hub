@@ -22,16 +22,21 @@ the fork does not mirror a moving branch into its own source tree.
 
 | Field | Observed value |
 | --- | --- |
-| Upstream Release | `v1.10.9` |
-| Upstream source commit | `077fb2fcfc273e29bd1266e527afc4a3d548b516` |
-| Version and `latest` manifest | `sha256:a896cee3cc5112a86b586f2d15d6a90cfca4a718fb78922eeddc7a13900accb5` |
+| Upstream Release | `v1.10.11` |
+| Upstream source commit | `6e1e54869d27ef0dce803e2293c4b95b1ecc470f` |
+| Version and `latest` manifest | `sha256:2965ab0216d0787845028fc2fcabb623c6944bb43f03f17637d9fdff75bb4254` |
 | Platforms | `linux/amd64`, `linux/arm64` |
-| Successful forced-build run | [Actions 41954943720](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/41954943720) |
+| Successful build and promotion | [Actions 41998471742](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/41998471742) |
 
 The manifest was queried from GHCR directly after the run. Both tags resolve
 to the same multi-platform digest printed in that run's log and step summary.
-On 2026-11-05, upstream `v1.10.10` was still a tag without a published Release,
-so it was intentionally not used.
+The image is currently published as `v1.10.11` and `latest`; `v1.10.9` remains
+available for rollback.
+
+The earlier `v1.10.9` baseline and its forced-build run
+[Actions 41954943720](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/41954943720)
+remain in the audit history. On 2026-11-05, upstream `v1.10.10` was a tag
+without a published Release and was intentionally not used.
 
 The image manifest query on 2026-11-05 also showed that GHCR still contained
 only `v1.10.9` and `latest`; the later `v1.10.11` release had not been built.
@@ -71,7 +76,9 @@ GitHub's cron scheduler can delay scheduled runs during peak load. The stated
 hourly cadence is the requested cadence, not a guarantee of exact start time.
 
 The workflow contract then verifies this repository's maintenance files at the
-fork commit SHA, not the upstream checkout's stock files.
+fork commit SHA. The source checkout starts with the complete upstream tag and
+then replaces its workflow directory with the registered fork files before the
+contract test runs.
 
 Public forks do not provide a reliable cross-repository `release` event or a
 guaranteed inherited scheduler. The GitHub Actions run history had no
@@ -205,6 +212,11 @@ active work. A public fork inherits the upstream Actions history and exposes
 it through the normal repository Runs API. The deleted workflow ID and its
 historical run remain queryable even though no workflow file exists, so the
 tab is not a reliable inventory of this fork's current workflow files.
+
+The first live cleanup removed 31 completed failures and cancellations older
+than six hours, reducing queryable runs from 54 to 25 while preserving every
+successful run. The run is
+[Actions 41998082078](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/41998082078).
 
 The upstream `release-checksums.yml` has been removed from this fork. It could
 not write upstream Release assets with the fork's token, and a Release event
