@@ -70,7 +70,7 @@ class WorkflowContractTest(unittest.TestCase):
         self.assertIn("maintenance/patches/*.patch", self.publish)
 
     def test_manifest_check_uses_build_digest(self):
-        self.assertIn('"$IMAGE@$DIGEST" --raw', self.publish)
+        self.assertIn('"$IMAGE:$TAG" --raw', self.publish)
         self.assertNotIn(
             "pkgs/container/workbuddy2api-hub/manifests/$DIGEST", self.publish
         )

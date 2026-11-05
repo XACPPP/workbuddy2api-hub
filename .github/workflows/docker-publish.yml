@@ -259,13 +259,6 @@ jobs:
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -281,7 +274,7 @@ jobs:
 
       # The version tag is visible only after complete multi-platform push.
       # latest is not applied here.
-      - name: Build and push version tag
+      - name: Build, push and verify version manifest
         id: build
         uses: docker/build-push-action@v6
         with:
@@ -296,24 +289,28 @@ jobs:
           provenance: mode=max
           sbom: true
 
-      - name: Verify platforms and source annotations
+      - name: Verify both architectures in the pushed version
         shell: bash
         env:
-          DIGEST: ${{ steps.build.outputs.digest }}
+          TAG: ${{ needs.resolve.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          docker buildx imagetools inspect "$IMAGE@$DIGEST" --raw > manifest.json
+          echo "$GH_TOKEN" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker buildx imagetools inspect "$IMAGE:$TAG" --raw > manifest.json
           python3 - <<'PY'
-          import json
+          import json, os
           manifest = json.load(open("manifest.json", encoding="utf-8"))
           platforms = {(p.get("os"), p.get("architecture"))
                        for p in manifest.get("manifests", [])}
           required = {("linux", "amd64"), ("linux", "arm64")}
           if not required.issubset(platforms):
-              raise SystemExit(f"manifest lacks {required}: {sorted(platforms)}")
-          print(f"verified linux/amd64 and linux/arm64: {sorted(platforms)}")
+              raise SystemExit(f"{os.environ['TAG']} lacks {required}: {sorted(platforms)}")
+          print(f"{os.environ['TAG']} verified: {sorted(platforms)}")
           PY
-          docker buildx imagetools inspect "$IMAGE@$DIGEST"
+          docker buildx imagetools inspect "$IMAGE:$TAG"
+          docker logout ghcr.io
 
       - name: Record verified source and digest
         shell: bash
