@@ -16,6 +16,8 @@ on:
         required: false
         default: false
         type: boolean
+  repository_dispatch:
+    types: [upstream_release]
   release:
     types: [published]
 
@@ -34,6 +36,7 @@ env:
   IMAGE: ghcr.io/xacppp/workbuddy2api-hub-fork
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   SOURCE_TAG: ${{ inputs.tag || '' }}
+  DISPATCH_TAG: ${{ github.event.client_payload.tag || '' }}
   REBUILD: ${{ inputs.rebuild || false }}
 
 jobs:
@@ -47,6 +50,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+
+      - name: Enable hourly schedule when explicitly disabled
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          STATE=$(gh api "repos/${{ github.repository }}/actions/workflows/docker-publish.yml" --jq .state)
+          if [[ "$STATE" != "active" ]]; then
+            gh workflow enable docker-publish.yml
+            echo "Re-enabled the hourly schedule."
+          fi
 
       - name: Resolve stable upstream Release
         id: resolve
@@ -86,10 +101,15 @@ jobs:
             SOURCE_REPOSITORY="$UPSTREAM_OWNER/$UPSTREAM_REPO"
           fi
 
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            TAG="$SOURCE_TAG"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" || \
+                "${{ github.event_name }}" == "repository_dispatch" ]]; then
+            if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+              TAG="$SOURCE_TAG"
+            else
+              TAG="$DISPATCH_TAG"
+            fi
             if ! is_stable_tag "$TAG"; then
-              echo "::error::Manual input must be exact semver like v1.10.9."
+              echo "::error::Requested tag must be exact semver like v1.10.9."
               exit 1
             fi
             RELEASE_URL=$(gh release view "$TAG" --repo "$SOURCE_REPOSITORY" --json url --jq '.url')
@@ -225,21 +245,9 @@ jobs:
       - name: Validate workflow contract
         if: steps.resolve.outputs.publish == 'true'
         shell: bash
-        env:
-          CONTRACT_REPOSITORY: XACPPP/workbuddy2api-hub
-          CONTRACT_REF: ${{ github.sha }}
         run: |
           set -euo pipefail
-          for path in docker-publish.yml tests.yml revert-guard.yml; do
-            gh api -H 'Accept: application/vnd.github.raw+json' \
-              "repos/$CONTRACT_REPOSITORY/contents/.github/workflows/$path?ref=$CONTRACT_REF" \
-              > "$RUNNER_TEMP/$path"
-          done
-          gh api -H 'Accept: application/vnd.github.raw+json' \
-            "repos/$CONTRACT_REPOSITORY/contents/maintenance/checks/workflow-contract.test.py?ref=$CONTRACT_REF" \
-            > "$RUNNER_TEMP/workflow-contract.test.py"
-          python3 "$RUNNER_TEMP/workflow-contract.test.py" \
-            --workflow-dir "$RUNNER_TEMP"
+          python3 maintenance/checks/workflow-contract.test.py
 
       - uses: docker/setup-qemu-action@v3
         if: steps.resolve.outputs.publish == 'true'

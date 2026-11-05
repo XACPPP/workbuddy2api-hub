@@ -33,6 +33,12 @@ to the same multi-platform digest printed in that run's log and step summary.
 On 2026-11-05, upstream `v1.10.10` was still a tag without a published Release,
 so it was intentionally not used.
 
+The image manifest query on 2026-11-05 also showed that GHCR still contained
+only `v1.10.9` and `latest`; the later `v1.10.11` release had not been built.
+The failed manual run
+[Actions 41997342761](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/41997342761)
+exposed a contract-test path bug before Buildx started.
+
 ## Stable version rule
 
 The automatic trigger accepts only a Release where all of these are true:
@@ -66,6 +72,20 @@ hourly cadence is the requested cadence, not a guarantee of exact start time.
 
 The workflow contract then verifies this repository's maintenance files at the
 fork commit SHA, not the upstream checkout's stock files.
+
+Public forks do not provide a reliable cross-repository `release` event or a
+guaranteed inherited scheduler. The GitHub Actions run history had no
+`schedule` event despite the workflow API reporting `active`. The workflow now
+checks that state before resolution and re-enables the workflow only if GitHub
+has explicitly disabled it; the hourly check remains the fallback. A future
+upstream workflow can optionally call this fork with `repository_dispatch`
+event type `upstream_release` and a `client_payload.tag`, but this repository
+does not claim that upstream currently sends it.
+
+The fork's publish workflow accepts that optional event, validates the
+requested tag against the upstream stable Release, and then uses the same
+resolution, source, build, manifest, and promotion gates as a manual run. It
+does not trust the event payload as proof that a Release is stable.
 
 To run it manually:
 
@@ -174,6 +194,17 @@ historical audit record. The temporary workflow is not present on `main`, and
 the final maintenance run
 [Actions 41957800314](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/41957800314)
 is green.
+
+Workflow-file cleanup and Actions-run cleanup are separate. The fork
+intentionally had 52 run records on 2026-11-05, including runs from removed
+workflow names (`tests`, `GHCR doctor`), while the repository itself retained
+only four files. `maintenance/cleanup-runs.py` now removes completed failures,
+cancellations, timeouts, and startup failures older than six hours. Successful
+runs and all queued or in-progress runs are preserved as release evidence and
+active work. A public fork inherits the upstream Actions history and exposes
+it through the normal repository Runs API. The deleted workflow ID and its
+historical run remain queryable even though no workflow file exists, so the
+tab is not a reliable inventory of this fork's current workflow files.
 
 The upstream `release-checksums.yml` has been removed from this fork. It could
 not write upstream Release assets with the fork's token, and a Release event

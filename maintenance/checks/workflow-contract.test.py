@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Static contract checks for the fork-only GHCR workflow."""
 
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 
 
 class WorkflowContractTest(unittest.TestCase):
@@ -11,13 +11,8 @@ class WorkflowContractTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        root = Path(__file__).resolve().parents[2]
-        cls.root = root
-        workflows = root / ".github" / "workflows"
-        if workflows.is_dir():
-            cls.workflows = workflows
-        else:
-            cls.workflows = cls.workflow_dir or Path(".")
+        cls.root = Path(__file__).resolve().parents[2]
+        cls.workflows = cls.workflow_dir or cls.root / ".github" / "workflows"
         cls.publish = (cls.workflows / "docker-publish.yml").read_text(
             encoding="utf-8"
         )
@@ -94,11 +89,22 @@ class WorkflowContractTest(unittest.TestCase):
                 r"if:\s*(?:>-\s*)?\$?\{?\{?\s*steps\.resolve\.outputs\.publish\s*==\s*'true'",
             )
 
+    def test_publish_validates_the_composed_checkout(self):
+        step = self.publish.index("name: Validate workflow contract")
+        block = self.publish[step:]
+        head = "\n".join(block.splitlines()[:10])
+        self.assertIn("maintenance/checks/workflow-contract.test.py", head)
+        self.assertNotIn("CONTRACT_REPOSITORY", head)
+
     def test_release_event_cannot_build_from_fork(self):
         self.assertIn(
             '"$SOURCE_REPOSITORY" != "$UPSTREAM_OWNER/$UPSTREAM_REPO"',
             self.publish,
         )
+
+    def test_schedule_is_explicitly_reenabled(self):
+        self.assertIn("gh workflow enable docker-publish.yml", self.publish)
+        self.assertIn('if [[ "$STATE" != "active" ]]', self.publish)
 
     def test_failure_cannot_reach_latest(self):
         promote = self.publish.index("name: Promote verified version to latest")

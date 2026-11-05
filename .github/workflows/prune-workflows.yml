@@ -35,3 +35,11 @@ jobs:
           --repo "${{ github.repository }}"
           --ref main
           --apply
+      - name: Remove old failed and cancelled runs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          python maintenance/cleanup-runs.py
+          --repo "${{ github.repository }}"
+          --minimum-age-hours 6
+          --apply

@@ -30,5 +30,7 @@ jobs:
         run: python maintenance/checks/workflow-contract.test.py
       - name: Validate automatic workflow cleanup
         run: python maintenance/checks/workflow-cleanup.test.py
+      - name: Validate old workflow run cleanup
+        run: python maintenance/checks/workflow-runs-cleanup.test.py
       - name: Validate release-engineering integration
         run: python tests/_test_release_engineering.py
