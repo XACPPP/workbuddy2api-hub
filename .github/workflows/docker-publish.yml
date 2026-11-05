@@ -134,10 +134,13 @@ jobs:
           echo "Resolved $TAG -> $COMMIT"
 
           if [[ "$REBUILD" != "true" ]]; then
-            EXISTING_TAG_DIGEST=$(gh api --paginate "$PACKAGE_URL/versions" \
-              --jq '.[] | select(.metadata.container.tags | index("'"$TAG"'")) | .name' \
-              2>/dev/null | head -n1 || true)
-            if [[ -n "$EXISTING_TAG_DIGEST" ]]; then
+            EXISTING_TAG_DIGEST=""
+            if gh api "$PACKAGE_URL" >/dev/null 2>&1; then
+              EXISTING_TAG_DIGEST=$(gh api --paginate "$PACKAGE_URL/versions" \
+                --jq '.[] | select((.metadata.container.tags // []) | index("'"$TAG"'")) | .name' \
+                2>/dev/null | head -n1 || true)
+            fi
+            if [[ "$EXISTING_TAG_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
               PLATFORMS=$(gh api \
                 "/repos/$FORK_REPOSITORY/pkgs/container/workbuddy2api-hub/manifests/$EXISTING_TAG_DIGEST" \
                 --jq '[.platforms[]? | "\(.os)/\(.architecture)"] | join(",")' \
