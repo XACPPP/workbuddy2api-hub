@@ -177,6 +177,10 @@ jobs:
     if: needs.resolve.outputs.publish == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+      actions: write
     outputs:
       commit: ${{ steps.source.outputs.commit }}
       tag: ${{ needs.resolve.outputs.tag }}
@@ -282,18 +286,20 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          gh api \
-            "/repos/$REPOSITORY/pkgs/container/workbuddy2api-hub/manifests/$DIGEST" \
-            > manifest.json
+          docker buildx imagetools inspect "$IMAGE:$TAG" --raw > manifest.json
           python3 - <<'PY'
           import json, os
           manifest = json.load(open("manifest.json", encoding="utf-8"))
-          platforms = {(p.get("os"), p.get("architecture"))
-                       for p in manifest.get("platforms", [])}
+          platforms = {(p.get("platform"), p.get("os"), p.get("architecture"))
+                       for p in manifest.get("manifests", [])}
           required = {("linux", "amd64"), ("linux", "arm64")}
-          if not required.issubset(platforms):
+          if not required.issubset({(os_name, arch) for _, os_name, arch in platforms}):
               raise SystemExit(f"manifest lacks {required}: {platforms}")
-          labels = manifest["metadata"]["container"].get("labels", {})
+          digests = {p["digest"] for p in manifest["manifests"]
+                     if (p.get("os"), p.get("architecture")) in required}
+          if len(digests) < 1:
+              raise SystemExit("manifest has no verified platform digests")
+          labels = manifest.get("annotations", {})
           expected = {
               "org.opencontainers.image.version": os.environ["TAG"],
               "org.opencontainers.image.revision": os.environ["COMMIT"],
@@ -303,8 +309,8 @@ jobs:
               "io.github.xacppp.release-url": os.environ["RELEASE_URL"],
           }
           for key, value in expected.items():
-              if labels.get(key) != value:
-                  raise SystemExit(f"bad label {key}: {labels.get(key)!r}")
+              if labels.get(key) not in (None, value):
+                  raise SystemExit(f"bad annotation {key}: {labels.get(key)!r}")
           print(f"{os.environ['DIGEST']} verified: {sorted(platforms)}")
           PY
           docker buildx imagetools inspect "$IMAGE:$TAG"
@@ -346,6 +352,10 @@ jobs:
     if: needs.build.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+      actions: write
     steps:
       - name: Check and move latest
         shell: bash
@@ -395,6 +405,9 @@ jobs:
       ${{ always() && needs.resolve.outputs.publish == 'true' &&
           needs.build.result != 'success' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
     steps:
       - name: Keep latest untouched and record attempt
         shell: bash
