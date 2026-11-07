@@ -59,6 +59,16 @@ was a Git tag but not a published Release, and its own test/release jobs were
 red. The latest stable Release was [`v1.10.9`](https://github.com/ardeyouxipianyi/workbuddy2api-hub/releases/tag/v1.10.9),
 resolved to commit `077fb2fcfc273e29bd1266e527afc4a3d548b516`.
 
+The automatic selection reads **one** page of the Releases listing. Under
+`gh api --paginate`, `--jq` runs once per page and the results are concatenated,
+so once upstream grew a second page of Releases the selected tag became
+`"v2.0.0\nv1.0.0"` and the following Release lookup failed with
+`net/url: invalid control character in URL` (runs of 2026-11-07, including
+[Actions 42321165264](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/42321165264)).
+Releases are returned newest-first, so the first page always contains the
+newest stable Release; a single-page read plus a newline guard keeps a
+multi-line value from ever reaching a request URL.
+
 ## Schedule and manual controls
 
 The workflow checks upstream at minute 17 of every hour (`17 * * * *`). The

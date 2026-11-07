@@ -124,9 +124,16 @@ jobs:
             }
           else
             # A lone Git tag, draft, or prerelease is not a stable Release.
-            TAG=$(gh api --paginate \
+            # Read a single page: under --paginate gh runs --jq once per page and
+            # concatenates the results, so a second page turned TAG into
+            # "v2.0.0\nv1.0.0" and the Release lookup URL failed to parse.
+            # Releases are newest-first, so the first page always holds the
+            # newest stable Release.
+            TAG=$(gh api \
               "repos/$SOURCE_REPOSITORY/releases?per_page=100" \
               --jq '[.[] | select(.draft == false and .prerelease == false and .published_at != null) | select(.tag_name | test("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"))][0].tag_name')
+            # Never let a multi-line value reach a request URL.
+            TAG=${TAG%%$'\n'*}
             if [[ -z "$TAG" ]]; then
               no_release
             fi
