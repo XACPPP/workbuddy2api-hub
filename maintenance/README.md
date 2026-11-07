@@ -121,6 +121,12 @@ the same single-page branch, and
 [Actions 42333763528](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/42333763528)
 read one tag and built its lookup URL without a parse error.
 
+Between 2026-11-07T00:55Z and 04:05Z the hourly `docker-publish.yml` produced
+no `schedule` run at all while the workflow API still reported it `active`. A
+disabled workflow, a suspended fork scheduler, and a long queue all look the
+same from the run list, so the schedule remains the one trigger without a
+post-fix observation; the `release` and manual paths carry the same code.
+
 To run it manually:
 
 1. Open **Actions** in the fork.
