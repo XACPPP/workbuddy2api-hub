@@ -22,16 +22,16 @@ the fork does not mirror a moving branch into its own source tree.
 
 | Field | Observed value |
 | --- | --- |
-| Upstream Release | `v1.10.11` |
-| Upstream source commit | `6e1e54869d27ef0dce803e2293c4b95b1ecc470f` |
-| Version and `latest` manifest | `sha256:2965ab0216d0787845028fc2fcabb623c6944bb43f03f17637d9fdff75bb4254` |
+| Upstream Release | `v2.0.0` |
+| Upstream source commit | `d2343964bd768d87952cc823c373c14cbda4943f` |
+| Version and `latest` manifest | `sha256:2d5050833b2dbf24a0aa7b057df65d9852d71e7b72182c49564e7efbc1d6a39b` |
 | Platforms | `linux/amd64`, `linux/arm64` |
-| Successful build and promotion | [Actions 41998471742](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/41998471742) |
+| Successful build and promotion | [Actions 42331304047](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/42331304047) |
 
 The manifest was queried from GHCR directly after the run. Both tags resolve
 to the same multi-platform digest printed in that run's log and step summary.
-The image is currently published as `v1.10.11` and `latest`; `v1.10.9` remains
-available for rollback.
+The image is currently published as `v2.0.0` and `latest`; `v1.10.11` and
+`v1.10.9` remain available for rollback.
 
 The earlier `v1.10.9` baseline and its forced-build run
 [Actions 41954943720](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/41954943720)
@@ -105,17 +105,28 @@ resolution, source, build, manifest, and promotion gates as a manual run. It
 does not trust the event payload as proof that a Release is stable.
 
 On 2026-11-05 at 17:01 Asia/Shanghai, after the publish workflow succeeded and
-reported `active`, the `event=schedule` query still returned no runs. Manual
-publication and cleanup are verified; inherited fork cron dispatch is not.
-Until a scheduled run is observed, the hourly check is a fallback rather than
-a proven trigger.
+reported `active`, the `event=schedule` query still returned no runs. The
+scheduler does fire in this fork, but late: each `schedule` run so far started
+10 to 43 minutes after its `17 * * * *` minute (09:27Z, 18:00Z, 23:37Z,
+06:41Z, 20:53Z, 00:55Z). The two most recent ones
+(2026-11-06T20:53Z and 2026-11-07T00:55Z) failed with the exact
+`net/url: invalid control character in URL` error above, which is the
+automatic-selection branch the single-page read replaces.
+
+A cron entry in a fork is a request, not a guarantee of start time, so the
+hourly check is a fallback and the manual run stays available.
+
+The corrected selection has run in Actions: the `release` event resolves through
+the same single-page branch, and
+[Actions 42333763528](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/42333763528)
+read one tag and built its lookup URL without a parse error.
 
 To run it manually:
 
 1. Open **Actions** in the fork.
 2. Select **Publish Docker image**.
 3. Choose **Run workflow** and enter an exact existing stable tag such as
-   `v1.10.9`.
+   `v2.0.0`.
 4. Leave `rebuild` off for the normal idempotent check.
 
 Turn `rebuild` on only after checking the version, commit, and expected image.
