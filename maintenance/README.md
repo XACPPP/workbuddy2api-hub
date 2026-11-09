@@ -127,6 +127,24 @@ disabled workflow, a suspended fork scheduler, and a long queue all look the
 same from the run list, so the schedule remains the one trigger without a
 post-fix observation; the `release` and manual paths carry the same code.
 
+On 2026-11-09 the `schedule` trigger was still silent: the last delivered run
+was 2026-11-07T22:44Z, and the 03:17Z tick produced nothing while
+`actions/workflows/docker-publish.yml` reported `active` and every run
+conclusion was `success`. `prune-workflows.yml`, a second cron in the same
+repository, stopped at 2026-11-07T22:03Z as well, so the whole fork lost its
+scheduled delivery rather than this one file losing its cron. GitHub documents
+that a cron entry is a request whose timing is not guaranteed, and in a fork it
+is the fragile trigger. A `push` trigger on `main` was added as the reliable
+counterpart: the fork always receives its own pushes, an already published
+version stops at the resolution step with `build and latest are untouched`, and
+`workflow_dispatch` stays available for an explicit run.
+
+As a result of the 2026-11-07T22:44Z stall the published `latest` had drifted
+to `v2.0.1` while the upstream stable Release was `v2.0.3`. A manual run
+[Actions 42555257651](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/42555257651)
+published `v2.0.3` and promoted it, so `latest` and `v2.0.3` now share the
+digest `sha256:49ea656846aad02f4fa234c94b62d3ab1d80f61bae8f18e09a705d4510767141`.
+
 To run it manually:
 
 1. Open **Actions** in the fork.
