@@ -22,16 +22,16 @@ the fork does not mirror a moving branch into its own source tree.
 
 | Field | Observed value |
 | --- | --- |
-| Upstream Release | `v2.0.0` |
-| Upstream source commit | `d2343964bd768d87952cc823c373c14cbda4943f` |
-| Version and `latest` manifest | `sha256:2d5050833b2dbf24a0aa7b057df65d9852d71e7b72182c49564e7efbc1d6a39b` |
+| Upstream Release | `v2.0.3` |
+| Upstream source commit | `018d52bdddd71344665f2da1218bbefce8a9dfd5` |
+| Version and `latest` manifest | `sha256:49ea656846aad02f4fa234c94b62d3ab1d80f61bae8f18e09a705d4510767141` |
 | Platforms | `linux/amd64`, `linux/arm64` |
-| Successful build and promotion | [Actions 42331304047](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/42331304047) |
+| Successful build and promotion | [Actions 42555257651](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/42555257651) |
 
 The manifest was queried from GHCR directly after the run. Both tags resolve
 to the same multi-platform digest printed in that run's log and step summary.
-The image is currently published as `v2.0.0` and `latest`; `v1.10.11` and
-`v1.10.9` remain available for rollback.
+The image is currently published as `v2.0.3` and `latest`; `v2.0.1`, `v2.0.0`,
+`v1.10.11`, and `v1.10.9` remain available for rollback.
 
 The earlier `v1.10.9` baseline and its forced-build run
 [Actions 41954943720](https://github.com/XACPPP/workbuddy2api-hub/actions/runs/41954943720)
@@ -150,7 +150,7 @@ To run it manually:
 1. Open **Actions** in the fork.
 2. Select **Publish Docker image**.
 3. Choose **Run workflow** and enter an exact existing stable tag such as
-   `v2.0.0`.
+   `v2.0.3`.
 4. Leave `rebuild` off for the normal idempotent check.
 
 Turn `rebuild` on only after checking the version, commit, and expected image.
